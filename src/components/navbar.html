@@ -10,13 +10,25 @@
 <body>
 <nav class="navbar">
   <div class="nav-container">
-    <!-- Brand - will work from any path -->
-    <a href="./" class="nav-brand">
+    <!-- Desktop brand -->
+    <a href="./" class="nav-brand desktop-brand">
       <i class="fa-solid fa-note-sticky"></i>
       WhiteFlow
     </a>
 
-    <!-- Desktop Links - use relative paths or let router handle absolute -->
+    <!-- Mobile top row wrapper -->
+    <div class="mobile-top-row">
+      <a href="./" class="nav-brand">
+        <i class="fa-solid fa-note-sticky"></i>
+        WhiteFlow
+      </a>
+      
+      <button class="mobile-toggle" id="mobileToggle">
+        <i class="fa-solid fa-bars"></i>
+      </button>
+    </div>
+
+    <!-- Desktop nav items -->
     <div class="nav-links" id="navLinks">
       <span class="nav-highlight" id="navHighlight"></span>
       <a href="./map" class="nav-item">Extra</a>
@@ -24,28 +36,24 @@
       <a href="./chat" class="nav-item">Chat</a>
     </div>
 
-    <!-- Auth Buttons -->
+    <!-- Desktop auth buttons -->
     <div class="auth-buttons" id="authButtons">
       <a href="./login" class="login-btn">Log in</a>
       <a href="./signup" class="signup-btn">Sign up</a>
     </div>
-
-    <!-- Mobile Toggle -->
-    <button class="mobile-toggle" id="mobileToggle">
-      <i class="fa-solid fa-bars"></i>
-    </button>
-  </div>
-
-  <!-- Mobile Dropdown -->
-  <div class="mobile-menu" id="mobileMenu">
-    <a href="./map" class="mobile-item">Extra</a>
-    <a href="./board" class="mobile-item">Board</a>
-    <a href="./chat" class="mobile-item">Chat</a>
-    <a href="./login" class="mobile-item border">Log in</a>
-    <a href="./signup" class="mobile-item solid">Sign up</a>
-  </div>
+    
+    <!-- Mobile menu -->
+    <div class="mobile-menu" id="mobileMenu">
+      <a href="./map" class="mobile-item">Extra</a>
+      <a href="./board" class="mobile-item">Board</a>
+      <a href="./chat" class="mobile-item">Chat</a>
+      <a href="./login" class="mobile-item border">Log in</a>
+      <a href="./signup" class="mobile-item solid">Sign up</a>
+    </div>
+  </div> 
 </nav>
 
-  <script src="../javascript/navbar.js"></script>
+<script src="../javascript/navbar.js"></script>
+<script>window.initNavbar();</script>
 </body>
 </html>

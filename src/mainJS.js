@@ -2,30 +2,28 @@
 
 // Load partial HTML into a container
 async function loadHTML(path, containerId) {
-  const container = document.getElementById(containerId);
-  try {
-    const response = await fetch(path);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const html = await response.text();
-    container.innerHTML = html;
-  } catch (err) {
-    container.innerHTML = `<p>Error loading page: ${path}</p>`;
-    console.error("Failed to load HTML:", path, err);
-  }
+    const container = document.getElementById(containerId);
+    try {
+        const response = await fetch(path);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const html = await response.text();
+        container.innerHTML = html;
+    } catch (err) {
+        container.innerHTML = `<p>Error loading page: ${path}</p>`;
+        console.error("Failed to load HTML:", path, err);
+    }
 }
 
 // --- ROUTER ---
 
 // Get the base path from the current location
-// If you're at /src/index.html, basePath will be "/src"
-// If you're at root /index.html, basePath will be ""
 function getBasePath() {
-  const path = window.location.pathname;
-  // If accessing mainapp.html or index.html, get the directory
-  if (path.includes('/src/')) {
-    return '/src';
-  }
-  return '';
+    const path = window.location.pathname;
+    // If accessing mainapp.html or index.html, get the directory
+    if (path.includes('/src/')) {
+        return '/src';
+    }
+    return '';
 }
 
 const BASE_PATH = getBasePath();
@@ -33,165 +31,197 @@ console.log("Base path detected:", BASE_PATH || "(root)");
 
 // Centralized route map
 const routes = {
-  "/": "Pages/homepage.html",
-  "/home": "Pages/homepage.html",
-  "/board": "Pages/board.html",
-  "/chat": "Pages/chat.html",
-  "/map": "Pages/map.html",
+    "/": "Pages/homepage.html",
+    "/home": "Pages/homepage.html",
+    "/board": "Pages/board.html",
+    "/chat": "Pages/chats.html",
+    "/map": "Pages/map.html",
 };
 
 // Normalize path helper - removes base path and trailing slashes
 function normalizePath(path) {
-  // Remove base path if present
-  if (BASE_PATH && path.startsWith(BASE_PATH)) {
-    path = path.substring(BASE_PATH.length);
-  }
-  // Remove trailing slash, but keep single "/" as is
-  path = path.replace(/\/$/, "") || "/";
-  return path;
+    // Remove base path if present
+    if (BASE_PATH && path.startsWith(BASE_PATH)) {
+        path = path.substring(BASE_PATH.length);
+    }
+    // Remove trailing slash, but keep single "/" as is
+    path = path.replace(/\/$/, "") || "/";
+    return path;
 }
 
 // Build full path with base
 function buildPath(route) {
-  return BASE_PATH + route;
+    return BASE_PATH + route;
 }
 
 // Navigate to a route (no reload)
 async function navigate(path) {
-  const pageContainer = document.getElementById("page-content");
+    const pageContainer = document.getElementById("page-content");
+    const navbarContainer = document.getElementById("navbar-container"); // Get the navbar container
 
-  // Normalize path (remove base and trailing slash)
-  path = normalizePath(path);
-  console.log("Navigating to:", path);
+    // Normalize path (remove base and trailing slash)
+    path = normalizePath(path);
+    console.log("Navigating to:", path);
 
-  // Check for a valid route
-  const route = routes[path] || null;
-  if (!route) {
-    pageContainer.innerHTML = `<h2>404 Page Not Found</h2><p>Path: ${path}</p>`;
-    window.history.replaceState({}, "", buildPath(path));
-    if (window.setActiveNavState) window.setActiveNavState();
-    return;
-  }
-
-  console.log("Loading route:", route);
-
-  // Load the HTML
-  await loadHTML(route, "page-content");
-
-  // Call navbar state updater
-  if (window.setActiveNavState) window.setActiveNavState();
-
-  // --- 🔥 Load route-specific JS ---
-  if (path === "/board") {
-    try {
-      // If board.js is a separate file:
-      if (!window.initBoard) {
-        const script = document.createElement("script");
-        script.src = "javascript/board.js";
-        document.body.appendChild(script);
-        script.onload = () => {
-          // Wait for next tick to ensure DOM is painted
-          setTimeout(() => {
-            if (window.initBoard) {
-              console.log("Initializing board...");
-              window.initBoard();
-            }
-          }, 0);
-        };
-      } else {
-        // If initBoard already defined, wait for DOM to be ready
-        setTimeout(() => {
-          console.log("Initializing board (already loaded)...");
-          window.initBoard();
-        }, 0);
-      }
-      console.log("✅ Board script loaded");
-    } catch (err) {
-      console.error("Failed to load board.js:", err);
+    // Check for a valid route
+    const route = routes[path] || null;
+    if (!route) {
+        pageContainer.innerHTML = `<h2>404 Page Not Found</h2><p>Path: ${path}</p>`;
+        window.history.replaceState({}, "", buildPath(path));
+        if (window.setActiveNavState) window.setActiveNavState();
+        return;
     }
-  }
+
+    console.log("Loading route:", route);
+    
+    // **✅ NEW LOGIC: Show/Hide Navbar**
+    if (navbarContainer) {
+        if ((path === "/board") || (path === "/chat")) {
+            // Hide navbar for the board page
+            navbarContainer.style.display = 'none';
+            console.log("Navbar hidden for /board.");
+        } else {
+            // Show navbar for all other pages
+            navbarContainer.style.display = ''; // Use empty string to revert to default (flex/block)
+            console.log("Navbar shown.");
+        }
+    }
+
+    // Load the HTML
+    await loadHTML(route, "page-content");
+
+    // Call navbar state updater
+    if (window.setActiveNavState) window.setActiveNavState();
+
+    // --- 🔥 Load route-specific JS ---
+    if (path === "/board") {
+        try {
+            // Check if scripts are already loaded
+            if (!window.initBoard) {
+                const script = document.createElement("script");
+                script.src = "javascript/board.js";
+                document.body.appendChild(script);
+
+                const chatScript = document.createElement("script");
+                chatScript.src = "javascript/chat.js";
+                document.body.appendChild(chatScript);
+
+                script.onload = () => {
+                    setTimeout(() => {
+                        if (window.initBoard) {
+                            console.log("Initializing board...");
+                            window.initBoard();
+                        }
+                    }, 0);
+                };
+
+                chatScript.onload = () => {
+                    setTimeout(() => {
+                        if (window.initChat) {
+                            console.log("Initializing chat...");
+                            window.initChat();
+                        }
+                    }, 0);
+                };
+            } else {
+                // If initBoard and initChat are already defined, wait for DOM and run.
+                setTimeout(() => {
+                    console.log("Initializing board (already loaded)...");
+                    window.initBoard();
+                    
+                    if (window.initChat) {
+                        console.log("Initializing chat (already loaded)...");
+                        window.initChat();
+                    }
+                }, 0);
+            }
+            console.log("✅ Board and Chat scripts handled");
+        } catch (err) {
+            console.error("Failed to load board/chat scripts:", err);
+        }
+    }
 }
 
 // Initialize the SPA
 async function initApp() {
-  console.log("Initializing app..."); // Debug log
-  
-  // --- Load the Navbar ---
-  await loadHTML("components/navbar.html", "navbar-container");
-
-  // Load navbar JS
-  const navbarScript = document.createElement("script");
-  navbarScript.src = "javascript/navbar.js";
-  document.body.appendChild(navbarScript);
-  await new Promise((resolve) => {
-    navbarScript.onload = resolve;
-    navbarScript.onerror = () => {
-      console.error("Failed to load navbar.js");
-      resolve(); // Continue anyway
-    };
-  });
-  
-  if (window.initNavbar) {
-    window.initNavbar();
-  } else {
-    console.warn("window.initNavbar not found");
-  }
-
-  // --- Initial route (based on current URL) ---
-  const initialPath = window.location.pathname;
-  console.log("Initial path:", initialPath); // Debug log
-  
-  // If we're at mainapp.html or index.html, go to home
-  if (initialPath.endsWith('mainapp.html') || initialPath.endsWith('index.html')) {
-    window.history.replaceState({}, "", buildPath('/'));
-    await navigate('/');
-  } else {
-    await navigate(initialPath);
-  }
-
-  // --- Handle link clicks (intercept) ---
-  document.body.addEventListener("click", (e) => {
-    const link = e.target.closest("a[href]");
-    if (!link) return;
-
-    const href = link.getAttribute("href");
+    console.log("Initializing app..."); // Debug log
     
-    // Skip external links and hash links
-    if (!href || href.startsWith("http") || href.startsWith("#") || href.startsWith("mailto:")) return;
+    // --- Load the Navbar ---
+    await loadHTML("components/navbar.html", "navbar-container");
 
-    // Create URL to check if it's internal
-    try {
-      const url = new URL(href, window.location.origin);
-      const path = normalizePath(url.pathname);
-
-      console.log("Link clicked:", href, "-> normalized:", path); // Debug log
-
-      // Only handle internal routes that are defined
-      if (routes[path]) {
-        e.preventDefault();
-        window.history.pushState({}, "", buildPath(path));
-        navigate(path);
-      } else {
-        console.log("Route not defined:", path); // Debug log
-      }
-    } catch (err) {
-      console.error("Error processing link:", href, err);
+    // Load navbar JS
+    const navbarScript = document.createElement("script");
+    navbarScript.src = "javascript/navbar.js";
+    document.body.appendChild(navbarScript);
+    await new Promise((resolve) => {
+        navbarScript.onload = resolve;
+        navbarScript.onerror = () => {
+            console.error("Failed to load navbar.js");
+            resolve(); // Continue anyway
+        };
+    });
+    
+    if (window.initNavbar) {
+        window.initNavbar();
+    } else {
+        console.warn("window.initNavbar not found");
     }
-  });
 
-  // --- Handle browser navigation (back/forward) ---
-  window.addEventListener("popstate", () => {
-    console.log("Popstate event, navigating to:", window.location.pathname);
-    navigate(window.location.pathname);
-  });
+    // --- Initial route (based on current URL) ---
+    const initialPath = window.location.pathname;
+    console.log("Initial path:", initialPath); // Debug log
+    
+    // If we're at mainapp.html or index.html, go to home
+    if (initialPath.endsWith('mainapp.html') || initialPath.endsWith('index.html')) {
+        window.history.replaceState({}, "", buildPath('/'));
+        await navigate('/');
+    } else {
+        await navigate(initialPath);
+    }
 
-  console.log("App initialized successfully"); // Debug log
+    // --- Handle link clicks (intercept) ---
+    document.body.addEventListener("click", (e) => {
+        const link = e.target.closest("a[href]");
+        if (!link) return;
+
+        const href = link.getAttribute("href");
+        
+        // Skip external links and hash links
+        if (!href || href.startsWith("http") || href.startsWith("#") || href.startsWith("mailto:")) return;
+
+        // Create URL to check if it's internal
+        try {
+            const url = new URL(href, window.location.origin);
+            const path = normalizePath(url.pathname);
+
+            console.log("Link clicked:", href, "-> normalized:", path); // Debug log
+
+            // Only handle internal routes that are defined
+            if (routes[path]) {
+                e.preventDefault();
+                window.history.pushState({}, "", buildPath(path));
+                navigate(path);
+            } else {
+                console.log("Route not defined:", path); // Debug log
+            }
+        } catch (err) {
+            console.error("Error processing link:", href, err);
+        }
+    });
+
+    // --- Handle browser navigation (back/forward) ---
+    window.addEventListener("popstate", () => {
+        console.log("Popstate event, navigating to:", window.location.pathname);
+        navigate(window.location.pathname);
+    });
+
+    console.log("App initialized successfully"); // Debug log
 }
 
 // --- Boot up the app ---
 // Wait for DOM to be ready
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initApp);
+    document.addEventListener('DOMContentLoaded', initApp);
 } else {
-  initApp();
+    initApp();
 }
