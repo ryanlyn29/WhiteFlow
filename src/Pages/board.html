@@ -6,733 +6,499 @@
     <title>Infinite Whiteboard</title>
 
     <script src="https://cdn.tailwindcss.com"></script>
-
-    <script src="https://kit.fontawesome.com/605a1488ff.js" crossorigin="anonymous"></script>
-
+    <!-- Combined Font Awesome CSS link (replacing the JS kit for static icons) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" xintegrity="sha512-SnH5WK+bZxgPHs44uWIX+LLMDJdZ5pG2n6xN/C6KxV6tLz8A8R3I2Dq9XQz8pD8iC4C5I5qV5H5O5P5O5P5O5Q==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <script src="https://cdn.jsdelivr.net/npm/interactjs/dist/interact.min.js"></script>
 
+    <link rel="stylesheet" href="../css/board.css" />
+
     <style>
-        html, body {
-            height: 100%;
-            margin: 0;
+        /* Custom Font */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            min-height: 100vh;
+            /* Note: board-container handles the main background color */
+        }
+        
+        /* Custom Bounce-in Animation for Messages */
+        @keyframes bounceIn {
+            0% { transform: scale(0.8); opacity: 0; }
+            60% { transform: scale(1.05); opacity: 1; }
+            100% { transform: scale(1); }
+        }
+        .animate-bounce-in {
+            animation: bounceIn 0.3s ease-out;
+        }
+
+        /* Custom Fade-in-out Animation for Save Popup */
+        @keyframes fadeInOut {
+            0% { opacity: 0; transform: translateY(-10px); }
+            10% { opacity: 1; transform: translateY(0); }
+            90% { opacity: 1; transform: translateY(0); }
+            100% { opacity: 0; transform: translateY(-10px); }
+        }
+        .animate-fade-in-out {
+            animation: fadeInOut 2s ease-in-out forwards;
+        }
+
+        /* Custom Scrollbar Styling */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background-color: #2a2a2a;
+            border-radius: 9999px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background-color: transparent;
+        }
+
+        /* Base styles for the sidebar container */
+        #sidebar-container {
+            right: 1.25rem; /* right-5 */
+            z-index: 50; /* Ensure it is above the main board elements */
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            backdrop-filter: blur(4px);
             overflow: hidden;
-        }
-        .custom-cursor {
-            pointer-events: none;
+            transition: all 500ms ease-in-out;
+            background-color: #100C08;
+            color: white;
+            font-family: 'Inter', sans-serif;
+            letter-spacing: 0.05em;
             position: fixed;
-            z-index: 50;
-            font-size: 16px;
-            transform: rotate(-90deg);
-        }
-        .no-cursor {
-            cursor: none !important;
-        }
-        .note-textarea {
-            resize: none;
-            background: transparent;
-            outline: none;
-        }
-        .scroll-container {
-            width: 100vw;
-            height: 100vh;
-            overflow: scroll;
-            background-color: #f5f5f5;
-            cursor: none;
-        }
-        .infinite-space {
-            width: 14000px;
-            height: 14000px;
-            position: relative;
-        }
-        /* Crucially, boards must have a relative or absolute position for nested items to be positioned correctly */
-        .canvas-frame {
-            position: absolute;
-            background: white;
-            border: 1px solid #d1d5db;
-            border-radius: 0.5rem;
-            /* Allow children (notes) to be positioned absolutely relative to this frame */
-            overflow: visible;
-        }
-        .frame-header {
-            position: absolute;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-family: 'Inter', sans-serif;
-            width: 100%;
-            padding: 0.25rem 0.5rem;
-            /* Position header above the board */
-            top: -28px; 
-            left: 0;
-            z-index: 10;
-            
-        }
-        .frame-title-input {
-            background: none;
-            border: none;
-            padding: 0;
-            margin: 0;
-            font-size: 0.875rem; /* text-sm */
-            font-weight: 400; /* font-medium */
-            color: #8a8a8a;
-            font-family: 'Inter', sans-serif;
-        }
-        .frame-title-input:focus {
-            outline: none;
-            /* blue-500 */
-        }
-        .sticky-note {
-            background-color: rgba(255, 249, 200, 0.9);
-            border: 1px solid #fde68a;
-            border-radius: 0.75rem;
-            padding: 0.5rem;
-            backdrop-filter: blur(5px);
-            position: absolute;
-            z-index: 5;
-        }
-        .toolbar-popup {
-            position: absolute;
-            bottom: 3rem;
-            left: 50%;
-            transform: translateX(-55%);
-            background-color: white;
-            border: 1px solid #d1d5db;
-            border-radius: 1rem;
-            padding: 0.75rem;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            z-index: 50;
-        }
-        /* Custom class to enable/disable drag */
-        .interact-draggable-enabled {
-            touch-action: none;
-            cursor: grab;
         }
     </style>
 </head>
 
-<body class="bg-[#100C08] relative overflow-hidden select-none">
+<body>
+    <!-- ✅ Put all your board elements INSIDE body -->
+    <div id="board-container" class="bg-[#100C08] relative overflow-hidden select-none">
+        <div id="scrollContainer" class="scroll-container">
+            <div id="workspace" class="infinite-space"></div>
+        </div>
 
-    <div id="scrollContainer" class="scroll-container">
-        <div id="workspace" class="infinite-space"></div>
+        <!-- Toolbar (Z-50) -->
+        <div id="toolbar"
+            class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-white backdrop-blur-xl border border-gray-300 flex items-center gap-2 py-1.5 px-2 rounded-2xl shadow-2xl z-50">
+            <button id="mouseTool" class="px-2.5 py-1 rounded-xl hover:bg-gray-200 transition" title="Mouse">
+                <i class="fas fa-location-arrow -rotate-90"></i>
+            </button>
+
+            <div class="w-[1px] h-6 bg-gray-400 mx-1 rounded-4xl"></div>
+
+            <button id="addFrame" class="px-2.5 py-1 rounded-xl hover:bg-gray-200 transition" title="Add Frame">
+                <i class="fas fa-square"></i>
+            </button>
+            <button id="addNote" class="px-2.5 py-1 rounded-xl hover:bg-gray-200 transition" title="Add Sticky Note">
+                <i class="fas fa-sticky-note"></i>
+            </button>
+
+            <div class="w-[1px] h-6 bg-gray-400 mx-1 rounded-4xl"></div>
+
+            <div class="relative">
+                <button id="penTool" class="px-2.5 py-1 rounded-xl hover:bg-gray-200 transition" title="Pen / Brush">
+                    <i class="fas fa-pen"></i>
+                </button>
+                <div id="penPopup" class="toolbar-popup hidden">
+                    <div id="penColors" class="flex gap-2 overflow-x-auto px-1"></div>
+                    <label class="relative w-6 h-6 flex-shrink-0 cursor-pointer rounded-full border-2 border-gray-300 hover:scale-110 transition" title="Choose custom color">
+                        <div id="customColorPreview" class="w-full h-full rounded-full"></div>
+                        <input id="customColor" type="color" class="absolute inset-0 opacity-0 cursor-pointer" />
+                    </label>
+                    <div class="w-[1px] h-6 bg-gray-300 mx-2"></div>
+                    <div id="penSizes" class="flex items-center gap-2"></div>
+                </div>
+            </div>
+
+            <div class="relative">
+                <button id="eraserTool" class="px-2 py-1 rounded-xl hover:bg-gray-200 transition" title="Eraser">
+                    <i class="fas fa-eraser"></i>
+                </button>
+                <div id="eraserPopup" class="toolbar-popup hidden">
+                    <div id="eraserSizes" class="flex items-center gap-2"></div>
+                </div>
+            </div>
+        </div>
+
+        <i id="customCursor" class="fas fa-location-arrow custom-cursor text-[#1a1a1a] opacity-100"></i>
     </div>
 
-    <div id="toolbar"
-        class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-white backdrop-blur-xl border border-gray-300 flex items-center gap-2 py-1.5 px-2 rounded-2xl shadow-2xl z-50">
-        <button id="mouseTool" class="px-1.5 py-1 rounded-xl hover:bg-gray-200 transition" title="Mouse">
-            <i class="fas fa-location-arrow -rotate-90"></i>
-        </button>
+    <!-- START: Content merged from sidebar.html -->
 
-        <div class="w-[1px] h-6 bg-gray-400 mx-1 rounded-4xl"></div>
+    <!-- Utility Bar (Top Navigation) -->
+    <div id="utility-bar" class="fixed top-0 w-full h-[5.5%] z-50 bg-[#121416] text-white text-center flex justify-between items-center px-4 text-xs font-inter font-normal tracking-wider">
+        <!-- Left side: App name or board info -->
+        <div class="flex items-center gap-1 whitespace-nowrap">
+            <a href="/" class="cursor-pointer">
+                <span class="font-semibold">Whiteboard Pro</span>
+            </a>
+            <span class="opacity-70">| Board: Design Sprint 1</span>
+        </div>
 
-        <button id="addFrame" class="px-1.5 py-1 rounded-xl hover:bg-gray-200 transition" title="Add Frame">
-            <i class="fas fa-square"></i>
-        </button>
-        <button id="addNote" class="px-1.5 py-1 rounded-xl hover:bg-gray-200 transition" title="Add Sticky Note">
-            <i class="fas fa-sticky-note"></i>
-        </button>
+        <!-- Center status -->
+        <div class="flex-1 flex justify-center overflow-x-auto no-scrollbar px-2">
+            <div class="opacity-80 whitespace-nowrap text-center">
+                Auto-Saved • Shared with 3 collaborators
+            </div>
+        </div>
 
-        <div class="w-[1px] h-6 bg-gray-400 mx-1 rounded-4xl"></div>
+        <!-- Right side -->
+        <div class="flex items-center gap-4 text-sm">
+            <!-- Open Account Modal -->
+            <i id="user-icon" class="fa-solid fa-user cursor-pointer"></i>
 
-        <div class="relative">
-            <button id="penTool" class="px-1.5 py-1 rounded-xl hover:bg-gray-200 transition" title="Pen / Brush">
-                <i class="fas fa-pen"></i>
+            <!-- Open Settings Modal -->
+            <i id="gear-icon" class="fa-solid fa-gear cursor-pointer hover:rotate-90 transition-transform duration-500"></i>
+
+            <div class="w-[1px] h-5 bg-gray-400 mx-1 rounded-4xl"></div>
+
+            <button class="rounded-lg px-2 py-1.5 text-xs cursor-pointer flex gap-1 items-center justify-center hover:bg-[#2a3a48]">
+                <i class="fa-solid fa-arrow-up-from-bracket"></i>
+                Share
             </button>
-            <div id="penPopup" class="toolbar-popup hidden">
-                <div id="penColors" class="flex gap-2 overflow-x-auto px-1"></div>
-                <label class="relative w-6 h-6 flex-shrink-0 cursor-pointer rounded-full border-2 border-gray-300 hover:scale-110 transition" title="Choose custom color">
-                    <div id="customColorPreview" class="w-full h-full rounded-full"></div>
-                    <input id="customColor" type="color" class="absolute inset-0 opacity-0 cursor-pointer" />
+            <button
+                id="save-button"
+                class="bg-blue-700 rounded-lg px-2 py-1.5 text-xs cursor-pointer hover:bg-blue-900 transition-colors"
+            >
+                Save
+            </button>
+        </div>
+    </div>
+    
+    <!-- Save Popup -->
+    <div id="save-popup" class="fixed top-[6%] right-[47%] z-[51] bg-[#100C08] text-white text-sm flex items-center justify-center gap-2 px-3 py-2 rounded-lg shadow-lg animate-fade-in-out" style="display: none;">
+        <i class="fa-solid fa-check bg-green-600 rounded-full px-1 py-1 text-xs leading-none"></i>
+        <span>Saved</span>
+    </div>
+
+    <!-- Chat Sidebar -->
+    <div id="sidebar-container">
+        <!-- Collapsed icon (initial state) -->
+        <button id="toggle-collapsed" class="fixed top-1/2 right-5 w-full h-full flex items-center justify-center text-white rounded-full bg-[#100C08] hover:bg-[#1b1d20] transition-colors duration-150 cursor-pointer" style="display: flex;">
+            <!-- faComment icon -->
+            <i class="fa-solid fa-comment fa-lg"></i>
+        </button>
+
+        <!-- Expanded Sidebar Content -->
+        <div id="sidebar-expanded" class="flex flex-col h-full" style="display: none;">
+            
+            <!-- Header -->
+            <div class="flex items-center justify-between px-5 py-3 border-b border-[#1c1e20] bg-[#151313]">
+                <span class="font-semibold text-[0.95rem] tracking-wide">
+                    Meeting Chat
+                </span>
+                <!-- Close Button -->
+                <button id="toggle-expanded" class="text-gray-400 cursor-pointer hover:text-white p-1 rounded-full hover:bg-[#2a2a2a] transition-all duration-150">
+                    <!-- faXmark icon -->
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <!-- Messages Area -->
+            <div id="messages-container" class="flex-1 flex flex-col overflow-y-auto px-4 py-3 space-y-4 scroll-smooth custom-scrollbar">
+                <!-- Messages will be injected here by JavaScript -->
+            </div>
+
+            <!-- Input -->
+            <div class="p-3 mt-auto bg-[#1a1b1d] border-t border-[#222426] flex items-center relative">
+                <input
+                    type="text"
+                    id="message-input"
+                    placeholder="Type a message..."
+                    class="w-full px-3 py-2 text-[11px] bg-[#222426] text-gray-200 rounded-full border border-[#3a3d42] focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder-gray-500"
+                />
+                <!-- Send Button -->
+                <button id="send-button" class="absolute right-6 cursor-pointer bg-blue-500 hover:bg-blue-700 text-white rounded-full transition-all duration-200 shadow-sm p-1.5 leading-none">
+                    <!-- faArrowUp icon -->
+                    <i class="fa-solid fa-arrow-up text-xs"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Placeholder Modals/Overlays -->
+    
+    <!-- Settings Overlay -->
+    <div id="settings-overlay" class="fixed inset-0 z-[52] flex items-center justify-center bg-black/50 backdrop-blur-sm" style="display: none;">
+        <div class="bg-gray-800 text-white rounded-xl p-8 shadow-2xl w-full max-w-md" onclick="event.stopPropagation()">
+            <h2 class="text-xl font-bold mb-4 border-b border-gray-700 pb-2">App Settings</h2>
+            <p class="text-gray-400 mb-4">This is a placeholder for application configuration settings.</p>
+            <div class="space-y-3">
+                <label class="flex items-center justify-between">
+                    <span>Dark Mode:</span>
+                    <input type="checkbox" class="form-checkbox text-blue-600 bg-gray-600 border-gray-500 rounded focus:ring-blue-500">
                 </label>
-                <div class="w-[1px] h-6 bg-gray-300 mx-2"></div>
-                <div id="penSizes" class="flex items-center gap-2"></div>
+                <label class="flex items-center justify-between">
+                    <span>Notifications:</span>
+                    <input type="checkbox" checked class="form-checkbox text-blue-600 bg-gray-600 border-gray-500 rounded focus:ring-blue-500">
+                </label>
             </div>
-        </div>
-
-        <div class="relative">
-            <button id="eraserTool" class="px-1.5 py-1 rounded-xl hover:bg-gray-200 transition" title="Eraser">
-                <i class="fas fa-eraser"></i>
-            </button>
-            <div id="eraserPopup" class="toolbar-popup hidden">
-                <div id="eraserSizes" class="flex items-center gap-2"></div>
-            </div>
+            <button onclick="toggleSettings(false)" class="mt-6 w-full py-2 bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors">Close</button>
         </div>
     </div>
 
-    <i id="customCursor" class="fas fa-location-arrow custom-cursor text-[#1a1a1a] opacity-100"></i>
+    <!-- Account Overlay -->
+    <div id="account-overlay" class="fixed inset-0 z-[52] flex items-center justify-center bg-black/50 backdrop-blur-sm" style="display: none;">
+        <div class="bg-gray-800 text-white rounded-xl p-8 shadow-2xl w-full max-w-md" onclick="event.stopPropagation()">
+            <h2 class="text-xl font-bold mb-4 border-b border-gray-700 pb-2">User Account</h2>
+            <div class="flex items-center space-x-4 mb-6">
+                <i class="fa-solid fa-user-circle fa-2xl text-blue-400"></i>
+                <div>
+                    <p class="font-semibold">Logged in as: User L</p>
+                    <p class="text-sm text-gray-400">user.l@whiteboard.com</p>
+                </div>
+            </div>
+            <p class="text-gray-400 mb-4">This is a placeholder for account details and profile management.</p>
+            <button onclick="toggleAccount(false)" class="mt-6 w-full py-2 bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors">Close</button>
+        </div>
+    </div>
+    
+    <!-- END: Content merged from sidebar.html -->
 
+    <!-- ✅ Load board logic last -->
+    <script src="../javascript/board.js"></script>
+
+    <!-- START: Script merged from sidebar.html -->
     <script>
-        /************************************************************
-         * INFINITE WHITEBOARD IMPLEMENTATION
-         ************************************************************/
-
-        const DRAWING_STORAGE_KEY = 'whiteboardDrawings';
-
-        const workspace = document.getElementById('workspace');
-        const scrollContainer = document.getElementById('scrollContainer');
-        const customCursor = document.getElementById('customCursor');
-
-        /***********************
-         * TOOLBAR ELEMENTS
-         ***********************/
-        const addFrameBtn = document.getElementById('addFrame');
-        const addNoteBtn = document.getElementById('addNote');
-        const penToolBtn = document.getElementById('penTool');
-        const eraserToolBtn = document.getElementById('eraserTool');
-        const mouseToolBtn = document.getElementById('mouseTool');
-        const penPopup = document.getElementById('penPopup');
-        const eraserPopup = document.getElementById('eraserPopup');
-        const penColorsContainer = document.getElementById('penColors');
-        const penSizesContainer = document.getElementById('penSizes');
-        const eraserSizesContainer = document.getElementById('eraserSizes');
-        const customColorInput = document.getElementById('customColor');
-        const customColorPreview = document.getElementById('customColorPreview');
-
-        /***********************
-         * STATE VARIABLES
-         ***********************/
-        let frames = []; // Array of top-level frame objects
-        let notes = []; // This will contain the note elements
-        let activeTool = 'mouse';
-        let penColor = '#1a1a1a';
-        let penSize = 2;
-        let eraserSize = 15;
-        let isMovingElement = false; // Flag to disable drawing while dragging/moving
-        let openPopup = null;
-        let drawingsData = {}; // Stores all canvas drawings as base64 strings
-
-        // --- Toolbar Setup (Colors & Sizes) ---
-        const presetColors = ['#1a1a1a', '#e63946', '#f1faee', '#a8dadc', '#457b9d', '#ffb703', '#fb8500', '#8338ec', '#3a86ff', '#06d6a0'];
-        presetColors.forEach(color => {
-            const div = document.createElement('div');
-            div.className = 'w-6 h-6 flex-shrink-0 rounded-full border-2 cursor-pointer';
-            div.style.backgroundColor = color;
-            div.onclick = () => { penColor = color; customColorPreview.style.backgroundColor = color; };
-            penColorsContainer.appendChild(div);
-        });
-        customColorPreview.style.backgroundColor = penColor;
-        customColorInput.addEventListener('change', e => {
-            penColor = e.target.value;
-            customColorPreview.style.backgroundColor = penColor;
-        });
-
-        [2, 5, 10, 20].forEach(size => {
-            const dot = document.createElement('div');
-            dot.className = 'rounded-full flex-shrink-0 bg-gray-500 hover:scale-110 hover:bg-gray-700 transition cursor-pointer';
-            dot.style.width = `${size / 2 + 4}px`;
-            dot.style.height = `${size / 2 + 4}px`;
-            dot.onclick = () => penSize = size;
-            penSizesContainer.appendChild(dot);
-        });
-
-        [10, 20, 30].forEach(size => {
-            const dot = document.createElement('div');
-            dot.className = 'bg-gray-500 rounded-full cursor-pointer hover:scale-110 hover:bg-gray-700 transition';
-            dot.style.width = `${size / 5 + 4}px`;
-            dot.style.height = `${size / 5 + 4}px`;
-            dot.onclick = () => eraserSize = size;
-            eraserSizesContainer.appendChild(dot);
-        });
-
-        // --- Toolbar Logic ---
-        function closePopups() {
-            penPopup.classList.add('hidden');
-            eraserPopup.classList.add('hidden');
-            openPopup = null;
-        }
-
-        function togglePopup(name) {
-            closePopups();
-            if (openPopup !== name) {
-                if (name === 'pen') penPopup.classList.remove('hidden');
-                if (name === 'eraser') eraserPopup.classList.remove('hidden');
-                openPopup = name;
-                activeTool = name;
-            } else {
-                activeTool = 'mouse';
-                openPopup = null;
-            }
-        }
-
-        penToolBtn.onclick = () => togglePopup('pen');
-        eraserToolBtn.onclick = () => togglePopup('eraser');
-        mouseToolBtn.onclick = () => {
-            activeTool = 'mouse';
-            closePopups();
-        };
-        addFrameBtn.onclick = () => addFrame();
-        // The addNoteBtn will now look for a selected board to add the note, 
-        // or add to the workspace if none is selected.
-        addNoteBtn.onclick = () => {
-            const selectedBoard = document.querySelector('.canvas-frame.ring-blue-500');
-            addStickyNote(selectedBoard || workspace);
-        };
-
-
-        /***********************
-         * DRAWING & STORAGE
-         ***********************/
-
-        function saveDrawingToLocalStorage(id, canvas) {
-            drawingsData[id] = {
-                data: canvas.toDataURL(),
-                originalWidth: canvas.width,
-                originalHeight: canvas.height
-            };
-            localStorage.setItem(DRAWING_STORAGE_KEY, JSON.stringify(drawingsData));
-        }
-
-        function loadDrawingFromLocalStorage(id, canvas, ctx) {
-            if (drawingsData[id]) {
-                const data = drawingsData[id];
-                const img = new Image();
-                img.onload = () => {
-                    const currentWidth = canvas.width;
-                    const currentHeight = canvas.height;
-                    
-                    // Temporarily set canvas to original size for drawImage
-                    canvas.width = data.originalWidth;
-                    canvas.height = data.originalHeight;
-                    ctx.drawImage(img, 0, 0);
-
-                    // Restore to current size (important for drawing continuity)
-                    canvas.width = currentWidth;
-                    canvas.height = currentHeight;
-                };
-                img.src = data.data;
-            }
-        }
-
-        /*******************************************************
-         * STICKY NESTING LOGIC - FIND & RE-PARENT ON DRAG END
-         *******************************************************/
-        function reparentNote(noteElement) {
-            const rect = noteElement.getBoundingClientRect();
-            const elementCenterX = rect.left + rect.width / 2;
-            const elementCenterY = rect.top + rect.height / 2;
-
-            // Default parent is the main workspace
-            let newParent = workspace; 
-
-            // Find potential new parent (any board/frame)
-            // Iterate backwards to prioritize nesting in front-most elements
-            const topLevelFrames = frames.map(f => f.element);
-            for (let i = topLevelFrames.length - 1; i >= 0; i--) {
-                const frame = topLevelFrames[i];
-                
-                // Skip if the note is already a child of this frame
-                if (frame === noteElement.parentElement) continue;
-                
-                const frameRect = frame.getBoundingClientRect();
-
-                // Check if the center of the note is inside the potential parent frame
-                if (
-                    elementCenterX > frameRect.left &&
-                    elementCenterX < frameRect.right &&
-                    elementCenterY > frameRect.top &&
-                    elementCenterY < frameRect.bottom
-                ) {
-                    newParent = frame;
-                    break;
-                }
-            }
-
-            const oldParent = noteElement.parentElement;
-
-            // Only perform reparenting if the parent has actually changed
-            if (newParent !== oldParent) {
-                // Get the position of the element relative to the viewport
-                const elementXViewport = rect.left;
-                const elementYViewport = rect.top;
-
-                // Get the position of the new parent relative to the viewport
-                const newParentRect = newParent.getBoundingClientRect();
-
-                // Calculate the element's new position relative to the new parent's top-left
-                const newX = elementXViewport - newParentRect.left;
-                const newY = elementYViewport - newParentRect.top;
-
-                // 1. Re-append the element to the new parent
-                newParent.appendChild(noteElement);
-
-                // 2. Update its position using absolute coordinates relative to the new parent
-                noteElement.style.left = `${newX}px`;
-                noteElement.style.top = `${newY}px`;
-                
-            } else {
-                // If parent is the same, just apply the transform changes as final absolute positioning
-                const dx = parseFloat(noteElement.getAttribute('data-x')) || 0;
-                const dy = parseFloat(noteElement.getAttribute('data-y')) || 0;
-                const finalX = parseFloat(noteElement.style.left) + dx;
-                const finalY = parseFloat(noteElement.style.top) + dy;
-
-                noteElement.style.left = `${finalX}px`;
-                noteElement.style.top = `${finalY}px`;
-            }
-
-            // 3. Clean up the drag-related attributes/styles
-            noteElement.style.transform = ''; 
-            noteElement.removeAttribute('data-x');
-            noteElement.removeAttribute('data-y');
-            
-            // Re-initialize interact drag with the correct restriction (new parent)
-            interact(noteElement).draggable({
-                modifiers: [interact.modifiers.restrictRect({ restriction: noteElement.parentElement })],
-            });
-        }
-
-
-        /***********************
-         * FRAME CREATION
-         ***********************/
-        function createFrame(x, y, width, height, title) {
-            const frameId = Date.now();
-            const frame = document.createElement('div');
-            frame.className = 'canvas-frame';
-            frame.style.left = `${x}px`;
-            frame.style.top = `${y}px`;
-            frame.style.width = `${width}px`;
-            frame.style.height = `${height}px`;
-            frame.dataset.id = frameId;
-
-            // 1. Frame Header and Title
-            const header = document.createElement('div');
-            header.className = 'frame-header';
-
-            const titleInput = document.createElement('input');
-            titleInput.type = 'text';
-            titleInput.value = title;
-            titleInput.className = 'frame-title-input';
-            titleInput.placeholder = 'Board Title';
-            header.appendChild(titleInput);
-
+        // --- State Variables ---
+        let isOpen = false;
+        let messages = [];
+        let showSettings = false;
+        let showAccount = false;
+        let showSavedPopup = false;
         
-            
-            // 3. Add Board/Frame Plus Icon (Adds a new top-level frame)
-            const plus = document.createElement('i');
-            plus.className = 'fas fa-plus text-gray-400 hover:text-blue-500 cursor-pointer';
-            plus.title = 'Add New Board';
-            plus.onclick = (e) => {
-                e.stopPropagation(); 
-                addFrame();
-            };
-            header.appendChild(plus);
-            frame.appendChild(header);
+        // --- DOM Elements ---
+        const sidebarContainer = document.getElementById('sidebar-container');
+        const toggleCollapsedBtn = document.getElementById('toggle-collapsed');
+        const toggleExpandedBtn = document.getElementById('toggle-expanded');
+        const sidebarExpanded = document.getElementById('sidebar-expanded');
+        const messagesContainer = document.getElementById('messages-container');
+        const messageInput = document.getElementById('message-input');
+        const sendButton = document.getElementById('send-button');
 
-            // Canvas for drawing
-            const canvas = document.createElement('canvas');
-            canvas.width = width;
-            canvas.height = height;
-            canvas.className = 'absolute inset-0 w-full h-full';
-            frame.appendChild(canvas);
+        // Utility Bar Elements
+        const userIcon = document.getElementById('user-icon');
+        const gearIcon = document.getElementById('gear-icon');
+        const saveButton = document.getElementById('save-button');
+        const settingsOverlay = document.getElementById('settings-overlay');
+        const accountOverlay = document.getElementById('account-overlay');
+        const savePopup = document.getElementById('save-popup');
 
-            const ctx = canvas.getContext('2d');
-            ctx.lineCap = 'round';
-            ctx.strokeStyle = penColor;
-            ctx.lineWidth = penSize;
-            let drawing = false;
+        // --- Configuration ---
+        const defaultMessages = [
+            { text: "Hey, did you finish the wireframe?", sender: "A", fromSelf: false },
+            { text: "Almost! I’m updating the sticky note layout.", sender: "L", fromSelf: true },
+            { text: "Nice — send it over when ready.", sender: "S", fromSelf: false },
+        ];
+        
+        // --- Core Functions ---
 
-            function getMousePos(e) {
-                const rect = canvas.getBoundingClientRect();
-                return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+        /**
+         * Loads messages from localStorage or uses defaults.
+         */
+        const loadMessages = () => {
+            const saved = localStorage.getItem("chatMessages");
+            try {
+                messages = saved ? JSON.parse(saved) : defaultMessages;
+            } catch (e) {
+                console.error("Error parsing messages from localStorage:", e);
+                messages = defaultMessages;
             }
+        };
 
-            // Drawing event listeners
-            canvas.addEventListener('mousedown', e => {
-                if (!['pen', 'eraser'].includes(activeTool) || isMovingElement) return;
-                const { x, y } = getMousePos(e);
-                ctx.beginPath();
-                ctx.moveTo(x, y);
-                drawing = true;
+        /**
+         * Saves the current messages array to localStorage.
+         */
+        const saveMessages = () => {
+            localStorage.setItem("chatMessages", JSON.stringify(messages));
+        };
+
+        /**
+         * Renders all messages to the DOM and scrolls to the bottom.
+         */
+        const renderMessages = () => {
+            messagesContainer.innerHTML = ''; // Clear previous messages
+            messages.forEach((msg, i) => {
+                // Determine alignment and colors
+                const alignClass = msg.fromSelf ? "flex-col items-end" : "flex-col items-start";
+                const bubbleClasses = msg.fromSelf
+                    ? "bg-blue-600 text-white self-end"
+                    : "bg-[#2b3037] text-gray-200 self-start";
+                const senderClasses = msg.fromSelf ? "self-end" : "self-start";
+
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `flex ${alignClass} gap-1 animate-bounce-in w-full`;
+                
+                // Message Bubble
+                const bubble = document.createElement('div');
+                bubble.className = `${bubbleClasses} rounded-2xl px-3 py-2 text-[12px] leading-relaxed max-w-[80%] shadow-sm`;
+                bubble.textContent = msg.text;
+
+                // Sender Initials
+                const senderInitials = document.createElement('div');
+                senderInitials.className = `rounded-full flex items-center justify-center text-black text-xs px-2 py-0.5 font-semibold bg-gray-200 ${senderClasses}`;
+                senderInitials.textContent = msg.sender;
+
+                messageDiv.appendChild(bubble);
+                messageDiv.appendChild(senderInitials);
+                messagesContainer.appendChild(messageDiv);
             });
 
-            canvas.addEventListener('mousemove', e => {
-                if (!drawing || isMovingElement) return;
-                const { x, y } = getMousePos(e);
-                if (activeTool === 'eraser') {
-                    ctx.globalCompositeOperation = 'destination-out';
-                    ctx.lineWidth = eraserSize;
-                } else {
-                    ctx.globalCompositeOperation = 'source-over';
-                    ctx.strokeStyle = penColor;
-                    ctx.lineWidth = penSize;
-                }
-                ctx.lineTo(x, y);
-                ctx.stroke();
-            });
+            // Scroll to the bottom of the chat
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        };
 
-            canvas.addEventListener('mouseup', () => {
-                if (drawing) {
-                    drawing = false;
-                    ctx.closePath();
-                    saveDrawingToLocalStorage(frameId, canvas); 
-                }
-            });
-            canvas.addEventListener('mouseleave', () => { drawing = false; ctx.closePath(); });
+        /**
+         * Toggles the sidebar's open/closed state and updates styles.
+         */
+        const onToggle = () => {
+            isOpen = !isOpen;
+            renderSidebar();
+        };
+
+        /**
+         * Applies the dynamic sizing styles based on the isOpen state.
+         */
+        const renderSidebar = () => {
+            // Apply main container styles
+            sidebarContainer.style.top = isOpen ? "7.5%" : "50%";
+            sidebarContainer.style.transform = isOpen ? "translateY(0)" : "translateY(-50%)";
+            sidebarContainer.style.width = isOpen ? "20rem" : "2.5rem";
+            sidebarContainer.style.height = isOpen ? "90vh" : "2.5rem";
+            sidebarContainer.style.borderRadius = isOpen ? "1.25rem" : "50%";
             
-            // Selection/Deselection
-            frame.addEventListener('click', (e) => {
-                if (activeTool === 'mouse') {
-                    document.querySelectorAll('.canvas-frame').forEach(f => f.classList.remove('ring-blue-500'));
-                    frame.classList.add('ring-blue-500');
-                    e.stopPropagation();
-                }
-            });
-
-            // 4. Interact.js Dragging/Resizing
-            const interactable = interact(frame).draggable({
-                enabled: false, // Default: Frames should only move when double-clicked
-                // Frames should only be restricted by the main workspace (always top-level now)
-                modifiers: [interact.modifiers.restrictRect({ restriction: workspace })], 
-                listeners: {
-                    start() {
-                        isMovingElement = true;
-                        frame.style.zIndex = 100; // Bring to front while dragging
-                        frame.classList.add('ring', 'ring-blue-500', 'ring-offset-2');
-                    },
-                    move(event) {
-                        const x = (parseFloat(frame.getAttribute('data-x')) || 0) + event.dx;
-                        const y = (parseFloat(frame.getAttribute('data-y')) || 0) + event.dy;
-                        frame.style.transform = `translate(${x}px, ${y}px)`;
-                        frame.setAttribute('data-x', x);
-                        frame.setAttribute('data-y', y);
-                    },
-                    end() {
-                        frame.style.zIndex = ''; // Reset z-index
-                        frame.classList.remove('ring', 'ring-blue-500', 'ring-offset-2');
-                        interactable.draggable({ enabled: false }); // Disable drag
-                        frame.classList.remove('interact-draggable-enabled');
-
-                        // Finalize position using absolute coordinates (Crucial for nesting to work)
-                        const dx = parseFloat(frame.getAttribute('data-x')) || 0;
-                        const dy = parseFloat(frame.getAttribute('data-y')) || 0;
-                        frame.style.left = `${parseFloat(frame.style.left) + dx}px`;
-                        frame.style.top = `${parseFloat(frame.style.top) + dy}px`;
-                        frame.style.transform = ''; 
-                        frame.removeAttribute('data-x');
-                        frame.removeAttribute('data-y');
-
-                        isMovingElement = false;
-                    }
-                }
-            }).resizable({
-                edges: { left: true, right: true, bottom: true, top: true },
-            }).on('resizemove', event => {
-                const { width, height } = event.rect;
-                const oldWidth = canvas.width;
-                const oldHeight = canvas.height;
-
-                const tempCanvas = document.createElement('canvas');
-                const tempCtx = tempCanvas.getContext('2d');
-                tempCanvas.width = oldWidth;
-                tempCanvas.height = oldHeight;
-                tempCtx.drawImage(canvas, 0, 0);
-
-                frame.style.width = `${width}px`;
-                frame.style.height = `${height}px`;
-                canvas.width = width;
-                canvas.height = height;
-
-                // Re-draw the original drawing without scaling/morphing
-                ctx.drawImage(tempCanvas, 0, 0, oldWidth, oldHeight);
-
-                saveDrawingToLocalStorage(frameId, canvas);
-            });
-
-            // Double-click to enable drag
-            frame.addEventListener('dblclick', (e) => {
-                // Only enable drag if the mouse tool is selected
-                if (activeTool !== 'mouse') return;
-                // Ensure double-click is on the board itself (canvas, or frame background)
-                if (e.target !== frame && e.target !== canvas) return;
-                interactable.draggable({ enabled: true });
-                frame.classList.add('interact-draggable-enabled');
-                e.stopPropagation(); // Prevent propagation to workspace
-            });
-
-            const frameData = { id: frameId, x, y, width, height, title, element: frame };
-            
-            // Add initial frame to the workspace
-            workspace.appendChild(frame);
-            loadDrawingFromLocalStorage(frameId, canvas, ctx);
-            
-            return frameData;
-        }
-
-        function addFrame() {
-            const width = 600, height = 400;
-            const scrollLeft = scrollContainer.scrollLeft;
-            const scrollTop = scrollContainer.scrollTop;
-            const containerWidth = scrollContainer.clientWidth;
-            const containerHeight = scrollContainer.clientHeight;
-
-            // Position near the center of the visible area
-            const x = scrollLeft + containerWidth / 2 - width / 2 + (Math.random() * 100 - 50);
-            const y = scrollTop + containerHeight / 2 - height / 2 + (Math.random() * 100 - 50);
-            
-            const newFrame = createFrame(x, y, width, height, `Board ${frames.length + 1}`);
-            // Frames are always top-level in this simplified approach
-            frames.push(newFrame);
-        }
-
-        /***********************
-         * STICKY NOTES
-         ***********************/
-        function addStickyNote(parent = workspace) {
-            const isNested = parent !== workspace;
-            const width = 150, height = 120;
-            let x, y;
-
-            if (isNested) {
-                // Position relative to the board's top-left corner
-                x = 10 + (Math.random() * 50);
-                y = 10 + (Math.random() * 50);
+            // Show/Hide content based on state
+            if (isOpen) {
+                toggleCollapsedBtn.style.display = 'none';
+                sidebarExpanded.style.display = 'flex';
+                // Render messages when opening
+                // Delay render to ensure correct scroll height after transition
+                setTimeout(renderMessages, 500); 
             } else {
-                // Position relative to the visible area of the workspace
-                const scrollLeft = scrollContainer.scrollLeft;
-                const scrollTop = scrollContainer.scrollTop;
-                const containerWidth = scrollContainer.clientWidth;
-                const containerHeight = scrollContainer.clientHeight;
-                x = scrollLeft + containerWidth / 2 - width / 2 + (Math.random() * 100 - 50);
-                y = scrollTop + containerHeight / 2 - height / 2 + (Math.random() * 100 - 50);
+                toggleCollapsedBtn.style.display = 'flex';
+                sidebarExpanded.style.display = 'none';
             }
+        };
 
-            const note = document.createElement('div');
-            note.className = 'sticky-note';
-            note.style.left = `${x}px`;
-            note.style.top = `${y}px`;
-            note.style.width = `${width}px`;
-            note.style.height = `${height}px`;
-            note.dataset.id = Date.now(); // Add ID for identification
+        /**
+         * Handles sending a new message.
+         */
+        const handleSend = () => {
+            const text = messageInput.value.trim();
+            if (!text) return;
 
-            const textarea = document.createElement('textarea');
-            textarea.className = 'w-full h-full note-textarea text-gray-800 font-medium text-sm';
-            textarea.value = 'New Note';
-            note.appendChild(textarea);
+            const newMessageObj = { text: text, sender: "L", fromSelf: true };
+            messages.push(newMessageObj);
             
-            // Remove the nested note button for this simplified approach
-            /*
-            const button = document.createElement('button');
-            button.className = 'absolute right-1 top-0.5 text-black/50 text-xs rounded-full p-1 hover:bg-black/5 transition-colors';
-            button.innerHTML = '<i class="fas fa-plus"></i>';
-            button.title = 'Add Nested Note';
-            button.onclick = (e) => {
-                e.stopPropagation(); 
-                addStickyNote(parent); // Add a new note to the same parent
-            };
-            note.appendChild(button);
-            */
-
-            parent.appendChild(note);
-            notes.push(note);
-
-            // Set up drag on the note with restriction to its current parent
-            interact(note).draggable({
-                // Restriction is set to the note's immediate parent element (workspace or canvas-frame)
-                modifiers: [interact.modifiers.restrictRect({ restriction: note.parentElement })],
-                listeners: {
-                    start() { 
-                        isMovingElement = true;
-                        note.style.zIndex = 100;
-                    },
-                    move(event) {
-                        const x = (parseFloat(note.getAttribute('data-x')) || 0) + event.dx;
-                        const y = (parseFloat(note.getAttribute('data-y')) || 0) + event.dy;
-                        note.style.transform = `translate(${x}px, ${y}px)`;
-                        note.setAttribute('data-x', x);
-                        note.setAttribute('data-y', y);
-                    },
-                    end() {
-                        note.style.zIndex = '';
-                        isMovingElement = false;
-                        
-                        // Sticky notes use reparenting logic to jump boards
-                        reparentNote(note);
-                    }
-                }
-            }).resizable({
-                edges: { left: true, right: true, bottom: true, top: true },
-            }).on('resizemove', event => {
-                const { width, height } = event.rect;
-                note.style.width = `${width}px`;
-                note.style.height = `${height}px`;
-            });
-        }
+            messageInput.value = ""; // Clear input
+            saveMessages();
+            renderMessages();
+        };
 
 
-        /***********************
-         * INITIALIZATION
-         ***********************/
-        function centerDefaultFrame() {
-            const width = 800;
-            const height = 500;
-            const centerX = (14000 - width) / 2;
-            const centerY = (14000 - height) / 2;
+        /**
+         * Handles the "Save" button click, showing the popup.
+         */
+        const handleSave = () => {
+            // Prevent multiple popups from firing rapidly
+            if (showSavedPopup) return;
 
-            const newFrame = createFrame(centerX, centerY, width, height, 'Board 1');
-            frames.push(newFrame);
+            // 1. Show popup
+            showSavedPopup = true;
+            renderUtilityBar();
 
-            const containerWidth = scrollContainer.clientWidth;
-            const containerHeight = scrollContainer.clientHeight;
-            scrollContainer.scrollLeft = centerX - containerWidth / 2 + width / 2;
-            scrollContainer.scrollTop = centerY - containerHeight / 2 + height / 2;
-        }
+            // 2. Hide popup after 2 seconds
+            setTimeout(() => {
+                showSavedPopup = false;
+                renderUtilityBar();
+            }, 2000);
+        };
+        
+        /**
+         * Toggles the visibility of the Settings modal.
+         */
+        const toggleSettings = (show) => {
+            showSettings = typeof show === 'boolean' ? show : !showSettings;
+            showAccount = false; // Close other modal
+            renderUtilityBar();
+        };
 
-        // Handle clicks outside of elements to deselect board
-        document.addEventListener('click', (e) => {
-            if (e.target === workspace || e.target === scrollContainer) {
-                 document.querySelectorAll('.canvas-frame').forEach(f => f.classList.remove('ring-blue-500'));
-            }
-        });
+        /**
+         * Toggles the visibility of the Account modal.
+         */
+        const toggleAccount = (show) => {
+            showAccount = typeof show === 'boolean' ? show : !showAccount;
+            showSettings = false; // Close other modal
+            renderUtilityBar();
+        };
 
-        function init() {
-            // Load existing drawings data
-            const savedDrawings = localStorage.getItem(DRAWING_STORAGE_KEY);
-            if (savedDrawings) {
-                drawingsData = JSON.parse(savedDrawings);
-                // Note: Full reconstruction of saved boards/notes requires a robust data model
-                // and a separate save/load function for element metadata (position, size, nesting).
-            }
+        /**
+         * Renders the dynamic elements of the utility bar (modals, popups).
+         */
+        const renderUtilityBar = () => {
+            // Render Modals
+            settingsOverlay.style.display = showSettings ? 'flex' : 'none';
+            accountOverlay.style.display = showAccount ? 'flex' : 'none';
 
-            centerDefaultFrame();
-            customCursor.style.display = 'block';
-            document.body.classList.add('no-cursor');
-        }
-
-        window.onload = init;
-
-        /***********************
-         * CUSTOM CURSOR
-         ***********************/
-        let cursorPos = { x: 0, y: 0 };
-        document.addEventListener('mousemove', e => {
-            // ... (Cursor positioning logic remains the same) ...
-            cursorPos = { x: e.clientX, y: e.clientY };
-            customCursor.style.left = `${cursorPos.x}px`;
-            customCursor.style.top = `${cursorPos.y}px`;
-
-            if (activeTool === 'pen') {
-                customCursor.className = 'fas fa-pen custom-cursor text-[' + penColor + '] opacity-100';
-                customCursor.style.transform = '';
-            } else if (activeTool === 'eraser') {
-                customCursor.className = 'fas fa-eraser custom-cursor text-gray-500 opacity-100';
-                customCursor.style.transform = '';
+            // Render Save Popup (uses custom animation class defined in CSS)
+            if (showSavedPopup) {
+                savePopup.style.display = 'flex';
+                // Restart animation
+                savePopup.classList.remove('animate-fade-in-out');
+                // Use a slight delay to force a repaint and restart the animation
+                void savePopup.offsetWidth; 
+                savePopup.classList.add('animate-fade-in-out');
             } else {
-                customCursor.className = 'fas fa-location-arrow custom-cursor text-[#1a1a1a] opacity-100';
-                customCursor.style.transform = 'rotate(-90deg)';
+                // Hide after animation cycle completes (controlled by CSS forwards)
+                // We keep it 'flex' while animating and hide it when state changes to false
+                if (!savePopup.classList.contains('animate-fade-in-out')) {
+                    savePopup.style.display = 'none';
+                }
             }
+        };
 
-            if (isMovingElement) {
-                customCursor.className = 'fas fa-arrows-alt custom-cursor text-blue-500 opacity-100';
-                customCursor.style.transform = '';
-            }
+
+        // --- Event Listeners & Initialization ---
+
+        // We use an event listener for load here, which will run after the board.js script.
+        document.addEventListener('DOMContentLoaded', () => {
+            // 1. Load data
+            loadMessages();
+            
+            // 2. Initial render for all dynamic elements
+            renderSidebar();
+            renderUtilityBar();
+
+            // 3. Attach Sidebar listeners
+            toggleCollapsedBtn.addEventListener('click', onToggle);
+            toggleExpandedBtn.addEventListener('click', onToggle);
+            sendButton.addEventListener('click', handleSend);
+            messageInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    handleSend();
+                }
+            });
+
+            // 4. Attach Utility Bar listeners
+            userIcon.addEventListener('click', () => toggleAccount(true));
+            gearIcon.addEventListener('click', () => toggleSettings(true));
+            saveButton.addEventListener('click', handleSave);
+
+            // 5. Add click listeners to close overlays (backdrop clicks)
+            settingsOverlay.addEventListener('click', (e) => {
+                if (e.target === settingsOverlay) toggleSettings(false);
+            });
+            accountOverlay.addEventListener('click', (e) => {
+                if (e.target === accountOverlay) toggleAccount(false);
+            });
+            
+            // Expose toggle functions globally for use in modal buttons
+            window.toggleSettings = toggleSettings;
+            window.toggleAccount = toggleAccount;
         });
-
-        document.addEventListener('mousedown', () => { customCursor.style.transform += ' scale(0.9)'; });
-        document.addEventListener('mouseup', () => { customCursor.style.transform = customCursor.style.transform.replace(' scale(0.9)', ''); });
-
     </script>
+    <!-- END: Script merged from sidebar.html -->
 </body>
 </html>

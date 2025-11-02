@@ -81,8 +81,8 @@ body {
 /* Highlight animation */
 .nav-highlight {
   position: absolute;
-  top: 0;
-  bottom: 0;
+  top: 0.1rem;
+  bottom: 0.1rem;
   background: rgba(0, 0, 0, 0.1);
   border-radius: 9999px;
   transition: left 0.5s ease, width 0.5s ease, opacity 0.3s;
@@ -100,7 +100,7 @@ body {
 .login-btn,
 .signup-btn {
   font-size: 0.9rem;
-  padding: 0.45rem 1.2rem;
+  padding: 0.3rem 1.2rem;
   border-radius: 9999px;
   text-decoration: none;
   transition: all 0.3s ease;

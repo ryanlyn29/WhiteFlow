@@ -62,29 +62,54 @@ async function navigate(path) {
 
   // Normalize path (remove base and trailing slash)
   path = normalizePath(path);
-
-  console.log("Navigating to:", path, "(normalized)"); // Debug log
+  console.log("Navigating to:", path);
 
   // Check for a valid route
   const route = routes[path] || null;
-
   if (!route) {
-    console.log("No route found for:", path); // Debug log
     pageContainer.innerHTML = `<h2>404 Page Not Found</h2><p>Path: ${path}</p>`;
-    // Update browser URL to the 404 path
     window.history.replaceState({}, "", buildPath(path));
-    // Still update nav state to clear any active highlighting
     if (window.setActiveNavState) window.setActiveNavState();
     return;
   }
 
-  console.log("Loading route:", route); // Debug log
+  console.log("Loading route:", route);
 
-  // Load the corresponding HTML
+  // Load the HTML
   await loadHTML(route, "page-content");
 
-  // Call navbar state updater if available
+  // Call navbar state updater
   if (window.setActiveNavState) window.setActiveNavState();
+
+  // --- 🔥 Load route-specific JS ---
+  if (path === "/board") {
+    try {
+      // If board.js is a separate file:
+      if (!window.initBoard) {
+        const script = document.createElement("script");
+        script.src = "javascript/board.js";
+        document.body.appendChild(script);
+        script.onload = () => {
+          // Wait for next tick to ensure DOM is painted
+          setTimeout(() => {
+            if (window.initBoard) {
+              console.log("Initializing board...");
+              window.initBoard();
+            }
+          }, 0);
+        };
+      } else {
+        // If initBoard already defined, wait for DOM to be ready
+        setTimeout(() => {
+          console.log("Initializing board (already loaded)...");
+          window.initBoard();
+        }, 0);
+      }
+      console.log("✅ Board script loaded");
+    } catch (err) {
+      console.error("Failed to load board.js:", err);
+    }
+  }
 }
 
 // Initialize the SPA

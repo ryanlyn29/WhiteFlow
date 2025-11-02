@@ -9,10 +9,42 @@
   <link rel="stylesheet" href="mainCSS.css" />
   <link rel="stylesheet" href="css/navbar.css" />
   <link rel="stylesheet" href="css/homepage.css" />
+  <link rel="stylesheet" href="css/board.css" />
+
   
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/interactjs/dist/interact.min.js"></script>
 
   <!-- Font Awesome -->
   <script src="https://kit.fontawesome.com/605a1488ff.js" crossorigin="anonymous"></script>
+
+  <style>
+    /* Ensure the page container takes full height */
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+    }
+    
+    #root-layout {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+
+     #navbar-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      z-index: 1000;
+    }
+    
+    #page-content {
+      flex: 1;
+      overflow: hidden;
+    }
+  </style>
 </head>
 <body>
   <div id="root-layout">
@@ -28,5 +60,7 @@
 
   <!-- Main Router Script -->
   <script src="mainJS.js"></script>
+  
+  
 </body>
 </html>
