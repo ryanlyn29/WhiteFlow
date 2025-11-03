@@ -35,7 +35,7 @@ const routes = {
     "/home": "Pages/homepage.html",
     "/board": "Pages/board.html",
     "/chat": "Pages/chats.html",
-    "/map": "Pages/map.html",
+    "/login": "Pages/login.html",
 };
 
 // Normalize path helper - removes base path and trailing slashes
@@ -57,7 +57,7 @@ function buildPath(route) {
 // Navigate to a route (no reload)
 async function navigate(path) {
     const pageContainer = document.getElementById("page-content");
-    const navbarContainer = document.getElementById("navbar-container"); // Get the navbar container
+    const navbarContainer = document.getElementById("navbar-container");
 
     // Normalize path (remove base and trailing slash)
     path = normalizePath(path);
@@ -74,15 +74,15 @@ async function navigate(path) {
 
     console.log("Loading route:", route);
     
-    // **✅ NEW LOGIC: Show/Hide Navbar**
+    // **✅ Show/Hide Navbar**
     if (navbarContainer) {
-        if ((path === "/board") || (path === "/chat")) {
-            // Hide navbar for the board page
+        if (path === "/board" || path === "/chat" || path === "/login") {
+            // Hide navbar for board, chat, and login pages
             navbarContainer.style.display = 'none';
-            console.log("Navbar hidden for /board.");
+            console.log("Navbar hidden for:", path);
         } else {
             // Show navbar for all other pages
-            navbarContainer.style.display = ''; // Use empty string to revert to default (flex/block)
+            navbarContainer.style.display = '';
             console.log("Navbar shown.");
         }
     }
@@ -139,12 +139,43 @@ async function navigate(path) {
         } catch (err) {
             console.error("Failed to load board/chat scripts:", err);
         }
+    } else if (path === "/login") {
+        try {
+            // Check if login script is already loaded
+            if (!window.loginInitialized) {
+                // Remove old script if it exists to allow re-initialization
+                const oldScript = document.querySelector('script[src*="login.js"]');
+                if (oldScript) {
+                    oldScript.remove();
+                }
+
+                const loginScript = document.createElement("script");
+                loginScript.src = "javascript/login.js";
+                document.body.appendChild(loginScript);
+
+                loginScript.onload = () => {
+                    console.log("✅ Login script loaded");
+                    window.loginInitialized = true;
+                };
+
+                loginScript.onerror = () => {
+                    console.error("Failed to load login.js");
+                };
+            } else {
+                // Re-trigger DOMContentLoaded for login.js
+                console.log("Re-initializing login page...");
+                const event = new Event('DOMContentLoaded');
+                document.dispatchEvent(event);
+            }
+        } catch (err) {
+            console.error("Failed to load login script:", err);
+        }
     }
 }
 
 // Initialize the SPA
 async function initApp() {
-    console.log("Initializing app..."); // Debug log
+    console.log("Initializing app...");
     
     // --- Load the Navbar ---
     await loadHTML("components/navbar.html", "navbar-container");
@@ -157,7 +188,7 @@ async function initApp() {
         navbarScript.onload = resolve;
         navbarScript.onerror = () => {
             console.error("Failed to load navbar.js");
-            resolve(); // Continue anyway
+            resolve();
         };
     });
     
@@ -169,7 +200,7 @@ async function initApp() {
 
     // --- Initial route (based on current URL) ---
     const initialPath = window.location.pathname;
-    console.log("Initial path:", initialPath); // Debug log
+    console.log("Initial path:", initialPath);
     
     // If we're at mainapp.html or index.html, go to home
     if (initialPath.endsWith('mainapp.html') || initialPath.endsWith('index.html')) {
@@ -194,7 +225,7 @@ async function initApp() {
             const url = new URL(href, window.location.origin);
             const path = normalizePath(url.pathname);
 
-            console.log("Link clicked:", href, "-> normalized:", path); // Debug log
+            console.log("Link clicked:", href, "-> normalized:", path);
 
             // Only handle internal routes that are defined
             if (routes[path]) {
@@ -202,7 +233,7 @@ async function initApp() {
                 window.history.pushState({}, "", buildPath(path));
                 navigate(path);
             } else {
-                console.log("Route not defined:", path); // Debug log
+                console.log("Route not defined:", path);
             }
         } catch (err) {
             console.error("Error processing link:", href, err);
@@ -215,7 +246,7 @@ async function initApp() {
         navigate(window.location.pathname);
     });
 
-    console.log("App initialized successfully"); // Debug log
+    console.log("App initialized successfully");
 }
 
 // --- Boot up the app ---
