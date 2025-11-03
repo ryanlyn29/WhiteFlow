@@ -66,8 +66,11 @@ window.initChat = function() {
             
             // Message Bubble
             const bubble = document.createElement('div');
-            bubble.className = `${bubbleClasses} rounded-2xl px-3 py-2 text-[12px] leading-relaxed max-w-[80%] shadow-sm`;
+            bubble.className = `${bubbleClasses} rounded-2xl px-3 py-2 text-[12px] leading-relaxed max-w-[80%] shadow-sm whitespace-pre-wrap`;
+            bubble.style.wordWrap = 'break-word';
+            bubble.style.overflowWrap = 'break-word';
             bubble.textContent = msg.text;
+            
 
             // Sender Initials
             const senderInitials = document.createElement('div');

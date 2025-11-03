@@ -41,17 +41,23 @@
             animation: fadeInOut 2s ease-in-out forwards;
         }
 
-        /* Custom Scrollbar Styling */
-        .custom-scrollbar::-webkit-scrollbar {
-            width: 2px;
+       .custom-scroll::-webkit-scrollbar {
+            /* Set a common thickness for both axes */
+            width: 14px;   
+            height: 14px; 
+            background: transparent;
         }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-            background-color: #2a2a2a;
-            width: 2px;
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: #848484;
             border-radius: 9999px;
+            
+            
+            border: 4px solid transparent; 
+            
+            background-clip: padding-box; 
         }
-        .custom-scrollbar::-webkit-scrollbar-track {
-            background-color: transparent;
+        .custom-scroll::-webkit-scrollbar-button {
+            display: none;
         }
 
         /* Base styles for the sidebar container */
@@ -72,8 +78,8 @@
 </head>
 
 <body>
-    <div id="board-container" class="bg-[#100C08] relative overflow-hidden select-none">
-        <div id="scrollContainer" class="scroll-container">
+    <div id="board-container" class="bg-[#100C08]  relative overflow-hidden select-none">
+        <div id="scrollContainer" class="scroll-container custom-scroll ">
             <div id="workspace" class="infinite-space"></div>
         </div>
 
@@ -156,8 +162,8 @@
         </div>
     </div>
     
-    <div id="save-popup" class="fixed top-[6%] right-[47%] z-[51] bg-[#100C08] text-white text-sm flex items-center justify-center gap-2 px-3 py-2 rounded-lg shadow-lg animate-fade-in-out" style="display: none;">
-        <i class="fa-solid fa-check bg-green-600 rounded-full px-1.5 py-1 text-xs leading-none"></i>
+    <div id="save-popup" class="fixed top-[6%] right-[45%] z-[51] bg-[#100C08] text-white text-sm flex items-center justify-center gap-2 px-3 py-2 rounded-lg shadow-lg animate-fade-in-out" style="display: none;">
+        <i class="fa-solid fa-check bg-green-600 rounded-full w-full h-full px-1.5 py-1 text-xs leading-none"></i>
         <span>Saved</span>
     </div>
 
@@ -177,30 +183,30 @@
                 </button>
             </div>
 
-            <div id="messages-container" class="flex-1 flex flex-col overflow-y-auto px-4 py-3 space-y-4 scroll-smooth custom-scrollbar">
+            <div id="messages-container" class="flex-1 flex flex-col overflow-y-auto px-4 py-3 space-y-4 scroll-smooth custom-scroll">
                 </div>
 
-           <div class="p-3 mt-auto bg-[#1a1b1d] border-t border-[#222426] flex items-center justify-between relative">
-            <div class="flex items-end justify-between bg-[#222426] border border-[#3a3d42] rounded-2xl w-full relative focus-within:ring-1 focus-within:ring-blue-500">
+            <div class="p-3 mt-auto bg-[#1a1b1d] border-t border-[#222426] flex items-center justify-between relative">
+                <div class="flex items-end justify-between bg-[#222426] border border-[#3a3d42] rounded-2xl w-full relative focus-within:ring-1 focus-within:ring-blue-500">
 
-                <!-- Auto-expanding textarea -->
-                <textarea
-                id="message-input"
-                oninput="this.style.height='auto'; this.style.height=this.scrollHeight+'px';"
-                rows="1"
-                placeholder="Type a message..."
-                class="w-full px-4 pr-10 py-2 text-[11px] bg-transparent text-gray-200 focus:outline-none overflow-hidden transition-all placeholder-gray-500 resize-none"
-                ></textarea>
+                    <!-- Auto-expanding textarea -->
+                    <textarea
+                    id="message-input"
+                    oninput="this.style.height='auto'; this.style.height=this.scrollHeight+'px';"
+                    rows="1"
+                    placeholder="Type a message..."
+                    class="w-full px-4 pr-10 py-2 text-[11px] bg-transparent text-gray-200 focus:outline-none overflow-hidden transition-all placeholder-gray-500 resize-none"
+                    ></textarea>
 
-                <!-- Arrow button (stays pinned at bottom-right) -->
-                <button
-                id="send-button"
-                class="absolute bottom-1.5 right-1.5 text-sm flex justify-center items-center cursor-pointer bg-blue-500 hover:bg-blue-700 text-white rounded-full transition-all duration-200 shadow-sm w-8 h-5"
-                >
-                <i class="fa-solid fa-arrow-up fa-xs pl-0.5"></i>
-                </button>
+                    <!-- Arrow button (stays pinned at bottom-right) -->
+                    <button
+                    id="send-button"
+                    class="absolute bottom-1.5 right-1.5 text-sm flex justify-center items-center cursor-pointer bg-blue-500 hover:bg-blue-700 text-white rounded-full transition-all duration-200 shadow-sm w-8 h-5"
+                    >
+                    <i class="fa-solid fa-arrow-up fa-xs pl-0.5"></i>
+                    </button>
+                </div>
             </div>
-</div>
 
         </div>
     </div>
