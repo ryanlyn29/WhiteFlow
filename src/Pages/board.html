@@ -13,8 +13,7 @@
 
     <style>
         /* Custom Font */
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
-        
+        @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400..700&family=Handlee&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Montserrat:ital,wght@0,100..900;1,100..900&family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&family=Public+Sans:ital,wght@0,100..900;1,100..900&family=Roboto:ital,wght@0,100..900;1,100..900&display=swap'); 
         body {
             font-family: 'Inter', sans-serif;
             min-height: 100vh;
@@ -43,7 +42,7 @@
 
        .custom-scroll::-webkit-scrollbar {
             /* Set a common thickness for both axes */
-            width: 14px;   
+            width: 14px; 
             height: 14px; 
             background: transparent;
         }
@@ -62,23 +61,40 @@
 
         /* Base styles for the sidebar container */
         #sidebar-container {
-            right: 1.25rem; /* right-5 */
-            z-index: 50; 
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-            backdrop-filter: blur(4px);
-            overflow: hidden;
-            transition: all 500ms ease-in-out;
-            background-color: #100C08;
-            color: white;
-            font-family: 'Inter', sans-serif;
-            letter-spacing: 0.05em;
-            position: fixed;
-        }
+        right: 1.25rem; /* right-5 */
+        z-index: 50; 
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        backdrop-filter: blur(4px);
+        overflow: hidden;
+        transition: all 500ms ease-in-out;
+        background-color: #100C08;
+        color: white;
+        font-family: 'Inter', sans-serif;
+        letter-spacing: 0.05em;
+        position: fixed;
+    }
+        
+        /* Base styles for the pomodoro container (UPDATED) */
+      #pomodoro-container {
+        left: 50%; /* Center horizontally */
+        transform: translateX(-50%); /* Adjust for left: 50% */
+        top: 7%; /* Below utility bar */
+        z-index: 50; 
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        backdrop-filter: blur(4px);
+        overflow: hidden;
+        transition: all 500ms ease-in-out;
+        background-color: transparent; 
+        color: white;
+        position: fixed;
+        /* REMOVED: width: 6rem; and height: 2.25rem; */
+        border-radius: 0.8rem; /* Small rounded rectangle */
+    }
     </style>
 </head>
 
 <body>
-    <div id="board-container" class="bg-[#100C08]  relative overflow-hidden select-none">
+    <div id="board-container" class="bg-[#100C08] relative overflow-hidden select-none">
         <div id="scrollContainer" class="scroll-container custom-scroll ">
             <div id="workspace" class="infinite-space"></div>
         </div>
@@ -162,7 +178,7 @@
         </div>
     </div>
     
-    <div id="save-popup" class="fixed top-[6%] right-[45%] z-[51] bg-[#100C08] text-white text-sm flex items-center justify-center gap-2 px-3 py-2 rounded-lg shadow-lg animate-fade-in-out" style="display: none;">
+    <div id="save-popup" class="fixed top-[6%] right-[43.8%] md:right-[46.9%] z-[51] bg-[#100C08] text-white text-sm flex items-center justify-center gap-2 px-3 py-2 rounded-lg shadow-lg animate-fade-in-out" style="display: none;">
         <i class="fa-solid fa-check fa-sm bg-green-600 rounded-full w-full h-full px-1.5 py-2.5 text-xs leading-none"></i>
         <span>Saved</span>
     </div>
@@ -178,7 +194,7 @@
                 <span class="font-semibold text-[0.95rem] tracking-wide">
                     Meeting Chat
                 </span>
-                <button id="toggle-expanded" class="text-gray-400 cursor-pointer hover:text-white p-1 rounded-full hover:bg-[#2a2a2a] transition-all duration-150">
+                <button id="toggle-expanded" class="text-gray-400 cursor-pointer hover:text-white px-2 py-0.5 rounded-full hover:bg-[#2a2a2a] transition-all duration-150">
                     <i class="fa-solid fa-xmark"></i>
                 </button>
             </div>
@@ -189,7 +205,6 @@
             <div class="p-3 mt-auto bg-[#1a1b1d] border-t border-[#222426] flex items-center justify-between relative">
                 <div class="flex items-end justify-between bg-[#222426] border border-[#3a3d42] rounded-2xl w-full relative focus-within:ring-1 focus-within:ring-blue-500">
 
-                    <!-- Auto-expanding textarea -->
                     <textarea
                     id="message-input"
                     oninput="this.style.height='auto'; this.style.height=this.scrollHeight+'px';"
@@ -198,7 +213,6 @@
                     class="w-full px-4 pr-10 py-2 text-[11px] bg-transparent text-gray-200 focus:outline-none overflow-hidden transition-all placeholder-gray-500 resize-none"
                     ></textarea>
 
-                    <!-- Arrow button (stays pinned at bottom-right) -->
                     <button
                     id="send-button"
                     class="absolute bottom-1.5 right-1.5 text-sm flex justify-center items-center cursor-pointer bg-blue-500 hover:bg-blue-700 text-white rounded-full transition-all duration-200 shadow-sm w-8 h-5"
@@ -242,10 +256,57 @@
             <p class="text-gray-400 mb-4">This is a placeholder for account details and profile management.</p>
             <button onclick="window.toggleAccount(false)" class="mt-6 w-full py-2 bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors">Close</button>
         </div>
+        
     </div>
+
+<div id="pomodoro-container">
+    
+    <button id="pomodoro-toggle-collapsed" 
+             class="h-full w-full flex items-center justify-center gap-2 text-white 
+             rounded-lg bg-red-600 hover:bg-red-700 transition-colors duration-150 
+             cursor-pointer shadow-lg px-2 py-1.5" 
+             style="display: flex; white-space: nowrap;" 
+             title="Pomodoro Timer"> 
+        
+             <i class="fa-solid fa-stopwatch fa-xs"></i>
+             <span id="collapsed-timer-display" class="text-sm font-semibold tracking-wider">25:00</span>
+    </button>
+
+<div id="pomodoro-expanded" class="flex flex-col w-full h-full rounded-xl shadow-2xl backdrop-blur-md bg-gray-800/90 text-white overflow-hidden transition-all duration-500 ease-in-out" style="display: none;">
+        <div class="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-900">
+            <span class="font-semibold text-base tracking-wide flex items-center gap-2">
+                <i class="fa-solid fa-tomato text-red-500"></i>
+                Pomodoro Timer
+            </span>
+            <button id="pomodoro-toggle-expanded" class="text-gray-400 cursor-pointer hover:text-white px-2 py-0.5 rounded-full hover:bg-gray-700 transition-all duration-150">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <div class="p-5 flex flex-col items-center flex-1 justify-center"> <div id="timer-display" class="text-6xl font-extrabold mb-4 font-inter tracking-tight">25:00</div>
+            
+            <div id="timer-phase" class="text-sm font-medium text-red-400 mb-6 uppercase tracking-widest">Focus Time</div>
+            
+            <div class="flex gap-4">
+                <button id="pomodoro-start-stop" class="w-12 h-12 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center transition-colors shadow-lg" title="Start Timer">
+                    <i class="fa-solid fa-play fa-lg"></i>
+                </button>
+                <button id="pomodoro-reset" class="w-12 h-12 bg-gray-600 hover:bg-gray-700 rounded-full flex items-center justify-center transition-colors shadow-lg" title="Reset Timer">
+                    <i class="fa-solid fa-rotate-right"></i>
+                </button>
+            </div>
+            
+            <div class="mt-5 text-xs text-gray-400">
+                Pomodoros Completed: <span id="pomodoro-count" class="font-bold text-white">0</span>
+            </div>
+        </div>
+    </div>
+</div>
+
     
     <script src="../javascript/board.js"></script>
     <script src="../javascript/chat.js"></script>
+    <script src="../javascript/pomodoro.js"></script>
 
     </body>
 </html>

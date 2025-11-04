@@ -587,4 +587,4 @@ window.initBoard = function() {
     // Initialize when script loads
     init();
 
-} // End of window.initBoard
+} 

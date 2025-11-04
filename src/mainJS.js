@@ -1,4 +1,4 @@
-// mainJS.js - COMPLETE FIXED VERSION FOR /src/ FOLDER
+// mainJS.js - COMPLETE FIXED VERSION for dynamic loading and SPA functions
 
 // Load partial HTML into a container
 async function loadHTML(path, containerId) {
@@ -73,8 +73,8 @@ async function navigate(path) {
     }
 
     console.log("Loading route:", route);
-    
-    // **✅ Show/Hide Navbar**
+
+    // ✅ Show/Hide Navbar
     if (navbarContainer) {
         if (path === "/board" || path === "/chat" || path === "/login") {
             // Hide navbar for board, chat, and login pages
@@ -96,15 +96,24 @@ async function navigate(path) {
     // --- 🔥 Load route-specific JS ---
     if (path === "/board") {
         try {
-            // Check if scripts are already loaded
-            if (!window.initBoard) {
+            // Check if scripts are already loaded (using sentinel value like window.initBoard)
+            if (!window.initBoard || !window.initPomodoro) { // Check for Pomodoro init function too
+                
+                // 1. Board Script
                 const script = document.createElement("script");
                 script.src = "javascript/board.js";
                 document.body.appendChild(script);
 
+                // 2. Chat Script
                 const chatScript = document.createElement("script");
                 chatScript.src = "javascript/chat.js";
                 document.body.appendChild(chatScript);
+
+                // 3. Pomodoro Script
+                const pomodoroScript = document.createElement("script");
+                pomodoroScript.src = "javascript/pomodoro.js";
+                document.body.appendChild(pomodoroScript);
+                // ------------------------------------
 
                 script.onload = () => {
                     setTimeout(() => {
@@ -123,21 +132,41 @@ async function navigate(path) {
                         }
                     }, 0);
                 };
+
+                // ⭐ CALL INITPOMODORO AFTER SCRIPT LOADED ⭐
+                pomodoroScript.onload = () => {
+                    setTimeout(() => {
+                        if (window.initPomodoro) {
+                            console.log("Initializing pomodoro...");
+                            window.initPomodoro(); 
+                        }
+                    }, 0);
+                };
+                // ---------------------------------------------
+
             } else {
-                // If initBoard and initChat are already defined, wait for DOM and run.
+                // If scripts are already defined, call their init functions again
                 setTimeout(() => {
-                    console.log("Initializing board (already loaded)...");
+                    console.log("Re-initializing board (already loaded)...");
                     window.initBoard();
-                    
+
                     if (window.initChat) {
-                        console.log("Initializing chat (already loaded)...");
+                        console.log("Re-initializing chat (already loaded)...");
                         window.initChat();
                     }
+
+                    // ⭐ RE-CALL INITPOMODORO FOR SUBSEQUENT NAVIGATIONS ⭐
+                    if (window.initPomodoro) {
+                        console.log("Re-initializing pomodoro...");
+                        window.initPomodoro(); 
+                    }
+                    // --------------------------------------------------
+
                 }, 0);
             }
-            console.log("✅ Board and Chat scripts handled");
+            console.log("✅ Board, Chat, and Pomodoro scripts handled");
         } catch (err) {
-            console.error("Failed to load board/chat scripts:", err);
+            console.error("Failed to load board/chat/pomodoro scripts:", err);
         }
     } else if (path === "/login") {
         try {
@@ -162,7 +191,7 @@ async function navigate(path) {
                     console.error("Failed to load login.js");
                 };
             } else {
-                // Re-trigger DOMContentLoaded for login.js
+                // Since login.js uses DOMContentLoaded, re-dispatch it
                 console.log("Re-initializing login page...");
                 const event = new Event('DOMContentLoaded');
                 document.dispatchEvent(event);
@@ -176,7 +205,7 @@ async function navigate(path) {
 // Initialize the SPA
 async function initApp() {
     console.log("Initializing app...");
-    
+
     // --- Load the Navbar ---
     await loadHTML("components/navbar.html", "navbar-container");
 
@@ -191,7 +220,7 @@ async function initApp() {
             resolve();
         };
     });
-    
+
     if (window.initNavbar) {
         window.initNavbar();
     } else {
@@ -201,7 +230,7 @@ async function initApp() {
     // --- Initial route (based on current URL) ---
     const initialPath = window.location.pathname;
     console.log("Initial path:", initialPath);
-    
+
     // If we're at mainapp.html or index.html, go to home
     if (initialPath.endsWith('mainapp.html') || initialPath.endsWith('index.html')) {
         window.history.replaceState({}, "", buildPath('/'));
@@ -216,7 +245,7 @@ async function initApp() {
         if (!link) return;
 
         const href = link.getAttribute("href");
-        
+
         // Skip external links and hash links
         if (!href || href.startsWith("http") || href.startsWith("#") || href.startsWith("mailto:")) return;
 

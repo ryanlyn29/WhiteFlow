@@ -18,6 +18,8 @@
     transform: rotate(-90deg);
 }
 
+
+
 #board-container .no-cursor {
     cursor: none !important;
 }
