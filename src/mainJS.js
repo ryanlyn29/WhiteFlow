@@ -36,6 +36,7 @@ const routes = {
     "/board": "Pages/board.html",
     "/chat": "Pages/chats.html",
     "/login": "Pages/login.html",
+    "/signin": "Pages/signin.html",
 };
 
 // Normalize path helper - removes base path and trailing slashes
@@ -74,9 +75,9 @@ async function navigate(path) {
 
     console.log("Loading route:", route);
 
-    // ✅ Show/Hide Navbar
+    // Show/Hide Navbar
     if (navbarContainer) {
-        if (path === "/board" || path === "/chat" || path === "/login") {
+        if (path === "/board" || path === "/chat" || path === "/login" || path === "/signin") {
             // Hide navbar for board, chat, and login pages
             navbarContainer.style.display = 'none';
             console.log("Navbar hidden for:", path);
@@ -93,7 +94,7 @@ async function navigate(path) {
     // Call navbar state updater
     if (window.setActiveNavState) window.setActiveNavState();
 
-    // --- 🔥 Load route-specific JS ---
+    // ---  Load route-specific JS ---
     if (path === "/board") {
         try {
             // Check if scripts are already loaded (using sentinel value like window.initBoard)
