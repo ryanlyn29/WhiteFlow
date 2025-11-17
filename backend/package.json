@@ -4,6 +4,9 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
+    "start": "node server.js",
+    "show-users": "node show-redis-users.js",
+    "watch": "node watch-redis.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",

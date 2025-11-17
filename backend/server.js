@@ -37,6 +37,45 @@ app.use(auth(config));
 
 redis.connect().catch(console.error);
 
+// Middleware to sync Auth0 users with Redis
+async function syncAuth0UserToRedis(req, res, next) {
+  if (req.oidc.isAuthenticated()) {
+    const auth0User = req.oidc.user;
+
+    try {
+      // Check if user exists in Redis using their Auth0 email
+      const userId = await redis.get(`email:${auth0User.email}`);
+
+      if (!userId) {
+        // User doesn't exist in Redis, create them
+        const uniqueId = auth0User.sub.replace(/\|/g, '-'); // Use Auth0 sub as unique ID
+
+        await redis.hSet(`user:${uniqueId}`, {
+          id: String(uniqueId),
+          name: String(auth0User.name || auth0User.email),
+          email: String(auth0User.email),
+          auth0_sub: String(auth0User.sub),
+          picture: String(auth0User.picture || ''),
+          created_at: String(new Date().toISOString())
+        });
+
+        // Create email -> userId mapping
+        await redis.set(`email:${auth0User.email}`, uniqueId);
+
+        console.log(`✅ Created new user in Redis: ${auth0User.email}`);
+      } else {
+        console.log(`✅ User already exists in Redis: ${auth0User.email}`);
+      }
+    } catch (error) {
+      console.error('Error syncing user to Redis:', error);
+    }
+  }
+  next();
+}
+
+// Apply sync middleware to all routes
+app.use(syncAuth0UserToRedis);
+
 // Home route - serves the main app
 app.get("/", (req, res) => {
   if (req.oidc.isAuthenticated()) {
@@ -53,9 +92,27 @@ app.get("/", (req, res) => {
   }
 });
 
-// Profile route - shows user info (optional, for debugging)
+// Profile route - shows Auth0 user info (for debugging)
 app.get("/profile", requiresAuth(), (req, res) => {
-  res.send(JSON.stringify(req.oidc.user, null, 2));
+  res.send(`<pre>${JSON.stringify(req.oidc.user, null, 2)}</pre>`);
+});
+
+// User data route - shows Redis user data (for debugging)
+app.get("/user-data", requiresAuth(), async (req, res) => {
+  try {
+    const auth0User = req.oidc.user;
+    const userId = await redis.get(`email:${auth0User.email}`);
+
+    if (!userId) {
+      return res.status(404).send('User not found in Redis');
+    }
+
+    const userData = await redis.hGetAll(`user:${userId}`);
+    res.send(`<pre>${JSON.stringify(userData, null, 2)}</pre>`);
+  } catch (error) {
+    console.error('Error fetching user data:', error);
+    res.status(500).send('Error fetching user data');
+  }
 });
 
 // Board route - protected, requires authentication
