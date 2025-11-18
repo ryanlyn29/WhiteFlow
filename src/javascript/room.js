@@ -34,7 +34,7 @@ window.showJoinRoom = function () {
 window.resetPage = function () {
     hideAll();
     if (actionSelection) actionSelection.style.display = 'flex';
-    if (titleText) titleText.textContent = 'Join or Create a Whiteboard Room';
+    if (titleText) titleText.textContent = 'Join or Create a Room';
     if (descriptionText) descriptionText.textContent = 'Choose an option below to either create a new collaborative space or join an existing one with a room code.';
 };
 
