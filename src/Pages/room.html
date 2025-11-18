@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Whiteboard - Room</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Caveat:wght@400..700&family=Inter:ital,opsz,wght@0,14..32,100..900&display=swap"
+    rel="stylesheet"
+  >
+  <link rel="stylesheet" href="../css/room.css" /> 
+  <script src="https://kit.fontawesome.com/605a1488ff.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Grid background */
+    .grid-background {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.5;
+      background-image:
+        linear-gradient(to right, rgba(34,108,90,0.25) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(34,108,90,0.25) 1px, transparent 1px);
+      background-size: 40px 40px;
+      animation: gridMove 12s linear infinite;
+    }
+
+    @keyframes gridMove {
+      0% { background-position: 0 0, 0 0; }
+      100% { background-position: 40px 40px, 40px 40px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="hero-container">
+    <div class="grid-background"></div>
+
+    <div class="hero-content">
+      <span class="badge">
+        <i class="fa-solid fa-house-chimney-medical"></i> Rooms
+      </span>
+
+      <h1 class="headline" id="title-text">
+        Join or Create a Room
+      </h1>
+
+      <p class="description" id="description-text">
+        Choose an option below to either create a new collaborative space or join an existing one with a room code.
+      </p>
+
+      <div class="buttons" id="action-selection">
+        <button class="btn btn-dark flex justify-between items-center gap-2" onclick="showCreateRoom()">
+          <i class="fa-solid fa-plus-circle fa-md"></i> Create Room
+        </button>
+        <button class="btn btn-light" onclick="showJoinRoom()">
+          <i class="fa-solid fa-door-open"></i> Join Room
+        </button>
+      </div>
+
+      <form id="create-room-form" class="form-container" style="display: none;">
+        <h2 class="form-title"> Room Details</h2>
+        <input type="text" id="room-name" name="room-name" placeholder="Enter Room Name" required class="text-input" >
+        <input type="text" id="custom-code" name="custom-code" placeholder="Custom Room Code (Optional)" class="text-input">
+        <div class="form-buttons">
+          <button type="button" class="btn btn-light" onclick="resetPage()">Back</button>
+          <button type="submit" class="btn btn-dark">Create</button>
+        </div>
+      </form>
+
+      <form id="join-room-form" class="form-container" style="display: none;">
+        <h2 class="form-title">Access Room</h2>
+        <input type="text" id="room-code" name="room-code" placeholder="Enter Room Code" required class="text-input">
+        <div class="form-buttons">
+          <button type="button" class="btn btn-light" onclick="resetPage()">Back</button>
+          <button type="submit" class="btn btn-dark">Join</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="floating-element burst-top-left">
+      <i class="fa-solid fa-hand-pointer icon" style="color:#ffc9c9"></i>
+      <div class="label" style="background:#ffc9c9;color:#5C1F1F;">Alex</div>
+    </div>
+    <div class="floating-element burst-bottom-right">
+      <i class="fa-solid fa-location-arrow icon fa-rotate-105" style="color:#ccdeff"></i>
+      <div class="label" style="background:#dce8ff;color:#444;">Leo</div>
+    </div>
+    <div class="floating-element burst-top-right">
+      <i class="fa-solid fa-i-cursor icon" style="color:#e2d5ff"></i>
+      <div class="label" style="background:#e2d5ff;color:#2E2172;">Maya</div>
+    </div>
+    <div class="floating-element burst-bottom-left">
+      <i class="fa-solid fa-up-down-left-right icon" style="color:#a6feb0;transform:rotate(180deg);"></i>
+      <div class="label" style="background:#cbffd1;color:#214B2A;">Sofia</div>
+    </div>
+    <div class="floating-element burst-icon-left">
+      <i class="fa-solid fa-square-root-variable icon" style="color:black;"></i>
+    </div>
+    <div class="floating-element burst-icon-right">
+      <i class="fa-solid fa-chart-pie icon" style="color:black;"></i>
+    </div>
+
+    </div>
+
+  <script src="../javascript/room.js"></script>
+</body>
+</html>
