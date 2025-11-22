@@ -2132,7 +2132,7 @@ window.initBoard = function() {
     /***********************
      * STICKY NOTES
      ***********************/
-        function addStickyNote(parent = workspace, id = null, content = 'Infinite canvas that feels native.', loadX=null, loadY=null, sprint=null, color=null) {
+        function addStickyNote(parent = workspace, id = null, content = '', loadX=null, loadY=null, sprint=null, color=null) {
         const isNested = parent !== workspace;
         const width = 240; 
         const height = 240; 
@@ -2188,7 +2188,7 @@ window.initBoard = function() {
         
         const createDropdownItem = (text, onClick, iconClass = null, hasSubmenu = false) => {
             const item = document.createElement('div');
-            item.className = `sticky-dropdown-item px-3 py-2 text-xs cursor-pointer rounded-lg mx-1.5 my-0.5 flex items-center gap-2 transition-colors relative hover:bg-gray-50 ${hasSubmenu ? 'has-submenu' : ''}`;
+            item.className = `sticky-dropdown-item px-3 py-2 text-xs cursor-pointer rounded-lg mx-1.5 my-0.5 flex w-md items-center gap-2 transition-colors relative hover:bg-gray-50 ${hasSubmenu ? 'has-submenu' : ''}`;
             
             if(iconClass) {
                 item.innerHTML = `<i class="${iconClass} w-4"></i> ${text}`;
@@ -2227,7 +2227,7 @@ window.initBoard = function() {
         
         // Create Submenu Container
         const submenu = document.createElement('div');
-        submenu.className = 'sticky-submenu hidden absolute right-full top-0 mr-2 flex-col gap-1 shadow-xl rounded-xl bg-white p-1 min-w-[120px]';
+        submenu.className = 'sticky-submenu hidden absolute right-full top-0 mr-2 flex-col gap-1 shadow-xl rounded-xl bg-white p-1 min-w-[125px]';
         assignBtn.onmouseenter = () => submenu.classList.remove('hidden');
         assignBtn.onmouseleave = () => submenu.classList.add('hidden');
         
@@ -2306,7 +2306,7 @@ window.initBoard = function() {
 
         // --- Content (Textarea styled as P) ---
         const textarea = document.createElement('textarea');
-        textarea.className = 'note-textarea w-full h-full min-h-[80px] bg-transparent resize-none outline-none text-xl font-medium text-gray-800 leading-[1.2] py-1 placeholder-yellow-700/20 pointer-events-none';
+        textarea.className = 'note-textarea w-full h-full min-h-[80px] bg-transparent resize-none outline-none text-xl font-medium placeholder-gray-200 text-gray-800 leading-[1.2] py-1 placeholder-yellow-700/20 pointer-events-none';
         textarea.value = content;
         textarea.placeholder = "Write your idea...";
         
