@@ -268,14 +268,8 @@ window.initBoard = function() {
                 const list = sprintLists.find(l => l.id == data.listId);
                 if (list && list.items[data.taskIdx]) {
                     list.items[data.taskIdx].completed = data.completed;
-                    // Re-render list content
                     const listEl = document.querySelector(`.sprint-list[data-id="${data.listId}"]`);
                     if(listEl) {
-                        // Using internal render if possible, or hacky re-trigger
-                        // To simplify, we can just find the checkbox and update visual state if logic allows, 
-                        // but full re-render is safer for consistency.
-                        // Since addSprintList defines renderContent internally, we might need to expose it or rebuild.
-                        // For now, let's assume we reload the whole component UI logic or just update the specific DOM elements.
                         const checkDiv = listEl.querySelector(`.task-item[data-idx="${data.taskIdx}"] .check-trigger`);
                         const input = listEl.querySelector(`.task-item[data-idx="${data.taskIdx}"] input`);
                         
@@ -309,13 +303,48 @@ window.initBoard = function() {
                     // Fully re-render list container to show new item
                     const listEl = document.querySelector(`.sprint-list[data-id="${data.listId}"]`);
                     if(listEl) {
-                        // We need to refresh the entire list UI. 
-                        // Since renderContent is closed over, we'll replace the element content by calling addSprintList logic effectively
-                        // Or better, remove and re-add to reuse logic
                         const x = listEl.style.left;
                         const y = listEl.style.top;
                         listEl.remove();
                         addSprintList(parseFloat(x), parseFloat(y), data.listId, list);
+                    }
+                }
+            } else if (data.type === 'NOTE_EDIT') {
+                const el = document.querySelector(`[data-id="${data.id}"]`);
+                if (el) {
+                    const textarea = el.querySelector('textarea');
+                    if (textarea) textarea.value = data.content;
+                }
+            } else if (data.type === 'NODE_EDIT') {
+                const el = document.querySelector(`[data-id="${data.id}"]`);
+                if (el) {
+                    const span = el.querySelector('span');
+                    if (span) span.innerText = data.text;
+                }
+            } else if (data.type === 'RESIZE') {
+                const el = document.querySelector(`[data-id="${data.id}"]`);
+                if (el && data.elementType === 'frame') {
+                    el.style.width = data.w + 'px';
+                    el.style.height = data.h + 'px';
+                    // Update frame data array
+                    const frameData = frames.find(f => f.id == data.id);
+                    if(frameData) {
+                        frameData.width = data.w;
+                        frameData.height = data.h;
+                    }
+                    
+                    // Sync Canvas
+                    const canvas = el.querySelector('canvas');
+                    if (canvas && data.image) {
+                        const ctx = canvas.getContext('2d');
+                        const img = new Image();
+                        img.onload = () => {
+                            canvas.width = data.w;
+                            canvas.height = data.h;
+                            ctx.drawImage(img, 0, 0);
+                            saveDrawingToLocalStorage(data.id, canvas);
+                        };
+                        img.src = data.image;
                     }
                 }
             }
@@ -761,6 +790,42 @@ window.initBoard = function() {
                 }
             });
         }
+
+        // Auto Save Logic
+        const autoSaveToggle = document.getElementById('auto-save-toggle');
+        const savedAutoSave = localStorage.getItem('autoSave') === 'true';
+        
+        if (autoSaveToggle) {
+            autoSaveToggle.checked = savedAutoSave;
+            if (savedAutoSave) startAutoSave();
+            
+            autoSaveToggle.addEventListener('change', (e) => {
+                const enabled = e.target.checked;
+                localStorage.setItem('autoSave', enabled);
+                if (enabled) {
+                    startAutoSave();
+                    window.showCustomAlert("Auto Save On", "Board will save every 10s", "success");
+                } else {
+                    stopAutoSave();
+                    window.showCustomAlert("Auto Save Off", "Auto save disabled", "info");
+                }
+            });
+        }
+
+        function startAutoSave() {
+            stopAutoSave();
+            autoSaveInterval = setInterval(() => {
+                saveBoardState();
+                if (saveStatusText) {
+                    saveStatusText.innerText = 'Auto-Saved';
+                    lastSaveTime = Date.now();
+                }
+            }, 10000);
+        }
+
+        function stopAutoSave() {
+            if (autoSaveInterval) clearInterval(autoSaveInterval);
+        }
     }
 
 
@@ -827,8 +892,7 @@ window.initBoard = function() {
              
              // Colors
              if (isActive) {
-                 dot.classList.add('bg-blue-500', 'shadow-[0_0_8px_rgba(59,130,246,0.8)]');
-             } else if (isFuture) {
+                dot.classList.add('bg-blue-500', 'shadow-[0_0_0_2px_rgba(96,165,250,0.2)]');             } else if (isFuture) {
                  dot.classList.add('bg-gray-700'); // Dimmed
              } else {
                  dot.classList.add('bg-gray-400'); // Past
@@ -1115,6 +1179,7 @@ window.initBoard = function() {
     const saveStatusText = document.getElementById('save-status-text');
     const savePopup = document.getElementById('save-popup');
     let saveInterval;
+    let autoSaveInterval;
     let lastSaveTime = null;
 
     function saveBoardState() {
@@ -1371,6 +1436,7 @@ window.initBoard = function() {
                 newSpan.innerText = newText;
                 input.replaceWith(newSpan);
                 updateTracker();
+                emitUpdate('NODE_EDIT', { id: nodeId, text: newText });
             };
             input.addEventListener('blur', save);
             input.addEventListener('keydown', (ev) => { if(ev.key === 'Enter') save(); });
@@ -1998,6 +2064,14 @@ window.initBoard = function() {
             canvas.height = newH;
             ctx.drawImage(tempCanvas, 0, 0, oldWidth, oldHeight);
             saveDrawingToLocalStorage(frameId, canvas);
+        }).on('resizeend', event => {
+             emitUpdate('RESIZE', { 
+                 id: frameId, 
+                 elementType: 'frame', 
+                 w: parseFloat(frame.style.width), 
+                 h: parseFloat(frame.style.height),
+                 image: canvas.toDataURL() // Send image to keep in sync
+             });
         });
 
         const frameData = { id: frameId, x, y, width, height, title, element: frame, folderId: null };
@@ -2213,6 +2287,10 @@ window.initBoard = function() {
             const val = textarea.value;
             textarea.value = '';
             textarea.value = val;
+        });
+        
+        textarea.addEventListener('input', () => {
+             emitUpdate('NOTE_EDIT', { id: noteId, content: textarea.value });
         });
 
         textarea.addEventListener('blur', () => {
