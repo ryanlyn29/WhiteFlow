@@ -243,7 +243,7 @@ window.initBoard = function() {
             } else if (data.type === 'ADD') {
                 if (data.elementType === 'note') {
                     if(!document.querySelector(`[data-id="${data.data.id}"]`))
-                        addStickyNote(workspace, data.data.id, data.data.content, data.data.x, data.data.y, data.data.sprint);
+                        addStickyNote(workspace, data.data.id, data.data.content, data.data.x, data.data.y, data.data.sprint, data.data.color);
                 } else if (data.elementType === 'frame') {
                     if(!frames.find(f => f.id == data.data.id))
                         createFrame(data.data.x, data.data.y, data.data.w, data.data.h, data.data.title, data.data.id);
@@ -314,6 +314,31 @@ window.initBoard = function() {
                 if (el) {
                     const textarea = el.querySelector('textarea');
                     if (textarea) textarea.value = data.content;
+                }
+            } else if (data.type === 'NOTE_UPDATE') {
+                const el = document.querySelector(`[data-id="${data.id}"]`);
+                if (el) {
+                    if (data.color) {
+                        el.dataset.color = data.color;
+                    }
+                    if (data.sprint !== undefined) {
+                         if (data.sprint) {
+                             el.dataset.sprint = data.sprint;
+                         } else {
+                             delete el.dataset.sprint;
+                         }
+                         
+                         const sprintTag = el.querySelector('.sprint-tag');
+                         if (sprintTag) {
+                             if (data.sprint) {
+                                 sprintTag.innerText = `#${data.sprint}`;
+                                 sprintTag.classList.remove('hidden');
+                             } else {
+                                 sprintTag.classList.add('hidden');
+                             }
+                         }
+                    }
+                    updateTracker();
                 }
             } else if (data.type === 'NODE_EDIT') {
                 const el = document.querySelector(`[data-id="${data.id}"]`);
@@ -1214,6 +1239,7 @@ window.initBoard = function() {
                 h: n.style.height,
                 content: n.querySelector('textarea').value,
                 sprint: n.dataset.sprint || null,
+                color: n.dataset.color || 'yellow', // Save Color
                 parentId: n.parentElement.classList.contains('canvas-frame') ? n.parentElement.dataset.id : 'workspace',
                 folderId: n.dataset.folderId
             })),
@@ -1285,7 +1311,7 @@ window.initBoard = function() {
                 const parentFrame = frames.find(f => f.id == n.parentId);
                 if (parentFrame) parent = parentFrame.element;
             }
-            addStickyNote(parent, n.id, n.content, parseFloat(n.x), parseFloat(n.y), n.sprint);
+            addStickyNote(parent, n.id, n.content, parseFloat(n.x), parseFloat(n.y), n.sprint, n.color);
             const note = notes.find(x => x.dataset.id == n.id);
             if(note && n.folderId) note.dataset.folderId = n.folderId;
         });
@@ -2105,7 +2131,7 @@ window.initBoard = function() {
     /***********************
      * STICKY NOTES
      ***********************/
-    function addStickyNote(parent = workspace, id = null, content = 'Infinite canvas that feels native.', loadX=null, loadY=null, sprint=null) {
+        function addStickyNote(parent = workspace, id = null, content = 'Infinite canvas that feels native.', loadX=null, loadY=null, sprint=null, color=null) {
         const isNested = parent !== workspace;
         const width = 240; 
         const height = 240; 
@@ -2126,11 +2152,12 @@ window.initBoard = function() {
         const noteId = id || Date.now();
 
         const note = document.createElement('div');
-        note.className = 'absolute w-64 bg-[#FFFCF0] border border-yellow-200/60 rounded-2xl p-5 flex flex-col gap-3 group shadow-sm hover:shadow-none transition-shadow select-none';
+        note.className = 'absolute w-64 bg-[#FFFCF0] border border-yellow-200/60 rounded-2xl p-5 flex flex-col gap-3 group shadow-sm hover:shadow-none transition-shadow select-none sticky-note';
         note.style.left = `${x}px`;
         note.style.top = `${y}px`;
         note.dataset.id = noteId;
         if (sprint) note.dataset.sprint = sprint;
+        if (color) note.dataset.color = color;
 
         // --- Header ---
         const header = document.createElement('div');
@@ -2155,12 +2182,12 @@ window.initBoard = function() {
         // Dropdown Menu
         const dropdown = document.createElement('div');
         // Replaced Tailwind styling with custom 'sticky-dropdown' class for easier theming
-        dropdown.className = 'sticky-dropdown absolute top-full right-0 mt-2 w-40 rounded-xl shadow-xl z-[60] hidden flex-col py-1 animate-fade-in-out origin-top-right';
+        dropdown.className = 'sticky-dropdown absolute top-full right-0 mt-2 w-40 rounded-xl shadow-xl z-[60] hidden flex-col py-1 animate-fade-in-out origin-top-right bg-white';
         dropdown.style.animation = 'none'; // reset animation for clean toggle
         
         const createDropdownItem = (text, onClick, iconClass = null, hasSubmenu = false) => {
             const item = document.createElement('div');
-            item.className = `sticky-dropdown-item px-3 py-2 text-xs cursor-pointer rounded-lg mx-1.5 my-0.5 flex items-center gap-2 transition-colors relative ${hasSubmenu ? 'has-submenu' : ''}`;
+            item.className = `sticky-dropdown-item px-3 py-2 text-xs cursor-pointer rounded-lg mx-1.5 my-0.5 flex items-center gap-2 transition-colors relative hover:bg-gray-50 ${hasSubmenu ? 'has-submenu' : ''}`;
             
             if(iconClass) {
                 item.innerHTML = `<i class="${iconClass} w-4"></i> ${text}`;
@@ -2187,6 +2214,7 @@ window.initBoard = function() {
                 delete note.dataset.sprint;
                 sprintTag.classList.add('hidden');
             }
+            emitUpdate('NOTE_UPDATE', { id: noteId, sprint: newSprint }); // Sync Sprint
             updateTracker();
             dropdown.classList.add('hidden'); // Close after selection
         };
@@ -2198,14 +2226,16 @@ window.initBoard = function() {
         
         // Create Submenu Container
         const submenu = document.createElement('div');
-        submenu.className = 'sticky-submenu flex-col gap-1 shadow-xl rounded-xl';
+        submenu.className = 'sticky-submenu hidden absolute right-full top-0 mr-2 flex-col gap-1 shadow-xl rounded-xl bg-white p-1 min-w-[120px]';
+        assignBtn.onmouseenter = () => submenu.classList.remove('hidden');
+        assignBtn.onmouseleave = () => submenu.classList.add('hidden');
         
         // Dynamic Sprints based on lists
         const sprintCount = sprintLists.length > 0 ? sprintLists.length : 3; // Default to 3 if none
         
         for(let i=1; i<=sprintCount; i++) {
             const sprintItem = document.createElement('div');
-            sprintItem.className = 'sticky-dropdown-item px-3 py-2 text-xs cursor-pointer rounded-lg mx-1.5 flex items-center gap-2 transition-colors';
+            sprintItem.className = 'sticky-dropdown-item px-3 py-2 text-xs cursor-pointer rounded-lg mx-1.5 flex items-center gap-2 transition-colors hover:bg-gray-50';
             sprintItem.innerText = `Sprint ${i}`;
             sprintItem.onclick = (e) => {
                 e.stopPropagation();
@@ -2216,7 +2246,7 @@ window.initBoard = function() {
         
         // Clear Sprint Option
         const clearItem = document.createElement('div');
-        clearItem.className = 'sticky-dropdown-item px-3 py-2 text-xs cursor-pointer rounded-lg mx-1.5 flex items-center gap-2 transition-colors text-gray-400 hover:text-white';
+        clearItem.className = 'sticky-dropdown-item px-3 py-2 text-xs cursor-pointer rounded-lg mx-1.5 flex items-center gap-2 transition-colors text-gray-400 hover:text-red-400';
         clearItem.innerText = 'Clear Sprint';
         clearItem.onclick = (e) => {
             e.stopPropagation();
@@ -2237,7 +2267,7 @@ window.initBoard = function() {
              const wsRect = workspace.getBoundingClientRect();
              const dx = (rect.left - wsRect.left) / currentScale + 20;
              const dy = (rect.top - wsRect.top) / currentScale + 20;
-             addStickyNote(parent, null, content, dx, dy, sprint);
+             addStickyNote(parent, null, content, dx, dy, sprint, note.dataset.color);
         }, 'fa-regular fa-copy'));
 
         const divider2 = document.createElement('div');
@@ -2305,7 +2335,8 @@ window.initBoard = function() {
         footer.className = 'flex items-center justify-between pt-2 mt-auto';
         
         const sprintTag = document.createElement('div');
-        sprintTag.className = 'px-2 py-0.5 bg-yellow-100/50 rounded-md border border-yellow-200/30 text-[10px] font-semibold text-yellow-700';
+        // ADDED 'sprint-tag' CLASS HERE FOR SOCKET SYNC
+        sprintTag.className = 'sprint-tag px-2 py-0.5 bg-yellow-100/50 rounded-md border border-yellow-200/30 text-[10px] font-semibold text-yellow-700';
         if (sprint) {
             sprintTag.innerText = `#${sprint}`;
         } else {
@@ -2334,7 +2365,7 @@ window.initBoard = function() {
                 parent: parent
             });
             
-            emitUpdate('ADD', { elementType: 'note', data: { id: noteId, x, y, content, sprint } });
+            emitUpdate('ADD', { elementType: 'note', data: { id: noteId, x, y, content, sprint, color: note.dataset.color } });
         }
         updateTracker();
     }
@@ -2362,7 +2393,7 @@ window.initBoard = function() {
                 if (noteEl.classList.contains('canvas-frame')) targetElementData = { type: 'frame', id, el: noteEl };
                 else if (noteEl.classList.contains('sprint-list')) targetElementData = { type: 'sprintList', id, el: noteEl };
                 else if (noteEl.dataset.type) targetElementData = { type: 'flowNode', id, el: noteEl }; // nodes
-                else if (noteEl.querySelector('.note-textarea')) targetElementData = { type: 'note', id, el: noteEl };
+                else if (noteEl.classList.contains('sticky-note')) targetElementData = { type: 'note', id, el: noteEl };
             }
 
             // Build Menu Items
@@ -2370,7 +2401,7 @@ window.initBoard = function() {
             
             const addItem = (text, icon, onClick) => {
                 const item = document.createElement('div');
-                item.className = 'sticky-dropdown-item px-4 py-2 text-sm cursor-pointer rounded-lg mx-1.5 my-1 flex items-center gap-3 transition-colors';
+                item.className = 'sticky-dropdown-item px-4 py-2 text-sm cursor-pointer rounded-lg mx-1.5 my-1 flex items-center gap-3 transition-colors hover:bg-gray-50';
                 item.innerHTML = `<i class="${icon} w-4"></i> ${text}`;
                 item.onclick = (ev) => {
                     ev.stopPropagation();
@@ -2465,7 +2496,8 @@ window.initBoard = function() {
             const note = notes.find(n => n.dataset.id == data.id);
             const content = note.querySelector('textarea').value;
             const sprint = note.dataset.sprint;
-            addStickyNote(workspace, null, content, x, y, sprint);
+            const color = note.dataset.color;
+            addStickyNote(workspace, null, content, x, y, sprint, color);
         } else if (data.type === 'sprintList') {
             const list = sprintLists.find(l => l.id == data.id);
             // Deep copy items
