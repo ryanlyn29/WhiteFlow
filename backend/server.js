@@ -22,14 +22,14 @@ const port = 3000;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const mainAppPath = path.join(__dirname, "src", "mainapp.html");
+const mainAppPath = path.join(__dirname, "..", "src", "mainapp.html");
 
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Serve static files from src directory
-app.use(express.static(path.join(__dirname, 'src')));
+app.use(express.static(path.join(__dirname, "..", "src")));
 
 // Auth0 configuration
 const config = {
