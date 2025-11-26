@@ -54,12 +54,29 @@ window.initRoom = function() {
         if (descriptionText) descriptionText.textContent = 'Enter the unique room code provided by the host to join an existing session.';
     };
 
-    window.resetPage = function () {
-        hideAll();
-        if (actionSelection) actionSelection.style.display = 'flex';
-        if (titleText) titleText.textContent = 'Join or Create a Room';
-        if (descriptionText) descriptionText.textContent = 'Choose an option below to either create a new collaborative space or join an existing one with a room code.';
-    };
+/**Resets the page view to the initial action selection screen.*/
+window.resetPage = function () {
+    hideAll();
+    if (actionSelection) actionSelection.style.display = 'flex';
+    if (titleText) titleText.textContent = 'Join or Create a Room';
+    if (descriptionText) descriptionText.textContent = 'Choose an option below to either create a new collaborative space or join an existing one with a room code.';
+};
+
+socket.on('roomCreated', (data) => {
+    console.log('Room created:', data);
+    alert(`Room created. Code: ${data.roomCode}`);
+    window.location.href = `/board?room=${data.roomCode}`;
+});
+
+socket.on('roomJoined', (data) => {
+    console.log('Joined room:', data);
+    window.location.href = `/board?room=${data.roomCode}`;
+});
+
+socket.on('roomError', (message) => {
+    console.error('Room error:', message);
+    alert(`Error: ${message}`);
+});
 
     // 3. Attach Event Listeners (using signal for easy cleanup)
 
