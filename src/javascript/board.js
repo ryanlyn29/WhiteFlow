@@ -543,8 +543,20 @@ window.initBoard = function() {
             //    NewScrollPos = (WorkspacePoint * NewScale) - MousePos
             scrollContainer.scrollLeft = (workspaceMouseX * currentScale) - mouseX;
             scrollContainer.scrollTop = (workspaceMouseY * currentScale) - mouseY;
+
+            // --- FIX: Update Scale of Remote Cursors to prevent them from growing/shrinking ---
+            updateRemoteCursorScales();
         }
     }, { passive: false });
+
+    // Helper to maintain consistent size of user cursors regardless of zoom level
+    function updateRemoteCursorScales() {
+        const invScale = 1 / currentScale;
+        document.querySelectorAll('.remote-cursor').forEach(el => {
+            el.style.transform = `scale(${invScale})`;
+            // Keep rotation for icon if needed, but container scale handles size
+        });
+    }
 
 
     /***********************
@@ -1523,8 +1535,11 @@ window.initBoard = function() {
             
             // OPTIMIZED: Tighter transition (15ms) to reduce visual lag behind drawing
             el.style.transition = 'left 0.015s linear, top 0.015s linear';
-            el.style.left = '0px';
+            el.style.left = '4px';
             el.style.top = '0px';
+            
+            // --- FIX: Inverse Scale to keep cursor size consistent on zoom ---
+            el.style.transform = `scale(${1/currentScale})`;
             
             // Icon
             const icon = document.createElement('i');
@@ -1540,7 +1555,7 @@ window.initBoard = function() {
             
             // Label
             const label = document.createElement('div');
-            label.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold shadow-sm whitespace-nowrap ml-1 mt-3';
+            label.className = 'px-2 py-0.5 rounded-full text-[12px] font-bold shadow-sm whitespace-nowrap ml-1 mt-3';
             label.style.backgroundColor = persona.bg;
             label.style.color = persona.color;
             label.innerText = persona.name || 'Guest';
@@ -1555,7 +1570,7 @@ window.initBoard = function() {
 
         // Update position using left/top instead of transform to avoid stacking issues with workspace scale
         cursor.element.style.left = `${x}px`;
-        cursor.element.style.top = `${y}px`;
+        cursor.element.style.top = `${y-4}px`;
 
         // Clear remove timer
         if (cursor.timeout) clearTimeout(cursor.timeout);
