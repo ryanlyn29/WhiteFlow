@@ -1,4 +1,3 @@
-
 /**
  * room.js - SPA Adapted
  * Handles UI logic for Room Creation/Joining.
@@ -34,6 +33,11 @@ window.initRoom = function() {
         if (joinRoomForm) joinRoomForm.style.display = 'none';
     }
 
+    function generateRoomCode() {
+        // Generate a random 6-character alphanumeric code
+        return Math.random().toString(36).substring(2, 8).toUpperCase();
+    }
+
     // Expose these to window so inline HTML onclick attributes (if any) still work,
     // or simply for external control.
     window.showCreateRoom = function () {
@@ -63,13 +67,29 @@ window.initRoom = function() {
     if (createRoomForm) {
         createRoomForm.addEventListener('submit', function(event) {
             event.preventDefault();
-            const nameVal = roomNameInput ? roomNameInput.value : '';
-            const codeVal = customCodeInput ? customCodeInput.value : '';
+            const nameVal = roomNameInput ? roomNameInput.value : 'Untitled Room';
+            let codeVal = customCodeInput ? customCodeInput.value.trim() : '';
             
+            if (!codeVal) {
+                codeVal = generateRoomCode();
+            }
+
             console.log('Creating room with Name:', nameVal, 'and Code:', codeVal);
             
-            // TODO: Add actual room creation and redirection logic (e.g., navigate('/board?room=new_id'))
-            // Example: socket.emit('create_room', ...)
+            // Navigate to the board with query parameters
+            // Note: We use pushState to set the URL params, then call navigate to load the board script/html
+            const targetUrl = `/board?room=${encodeURIComponent(codeVal)}&role=host&name=${encodeURIComponent(nameVal)}`;
+            
+            // Push state so the URL bar updates
+            window.history.pushState({}, "", targetUrl);
+            
+            // Call the SPA router to load the board content
+            if (typeof navigate === 'function') {
+                navigate('/board'); 
+            } else {
+                window.location.href = targetUrl; // Fallback
+            }
+
         }, signal);
     }
 
@@ -77,12 +97,24 @@ window.initRoom = function() {
     if (joinRoomForm) {
         joinRoomForm.addEventListener('submit', function(event) {
             event.preventDefault();
-            const codeVal = roomCodeInput ? roomCodeInput.value : '';
+            const codeVal = roomCodeInput ? roomCodeInput.value.trim() : '';
+
+            if (!codeVal) {
+                alert("Please enter a valid room code.");
+                return;
+            }
 
             console.log('Joining room with Code:', codeVal);
             
-            // TODO: Add actual room joining and redirection logic
-            // Example: socket.emit('join_room', ...)
+            const targetUrl = `/board?room=${encodeURIComponent(codeVal)}&role=guest`;
+
+            window.history.pushState({}, "", targetUrl);
+
+            if (typeof navigate === 'function') {
+                navigate('/board');
+            } else {
+                window.location.href = targetUrl;
+            }
         }, signal);
     }
 
