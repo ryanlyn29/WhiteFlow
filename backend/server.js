@@ -13,7 +13,7 @@ const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.AUTH0_BASE_URL || "http://localhost:3000",
+    origin: process.env.AUTH0_BASE_URL,
     methods: ["GET", "POST"]
   }
 });
@@ -35,8 +35,8 @@ app.use(express.static(path.join(__dirname, "..", 'src')));
 const config = {
   authRequired: false,
   auth0Logout: true,
-  secret: process.env.AUTH0_SECRET || 'a_very_long_random_string_for_testing_locally',
-  baseURL: process.env.AUTH0_BASE_URL || 'http://localhost:3000',
+  secret: process.env.AUTH0_SECRET,
+  baseURL: process.env.AUTH0_BASE_URL,
   clientID: process.env.AUTH0_CLIENT_ID,
   issuerBaseURL: `https://${process.env.AUTH0_DOMAIN}`
 };
