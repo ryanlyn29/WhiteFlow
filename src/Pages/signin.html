@@ -6,10 +6,7 @@
     <title>Sign In | Whiteflow</title>
 
     <script src="https://cdn.tailwindcss.com"></script>
-    <script
-      src="https://kit.fontawesome.com/a2b5c6b5c6.js"
-      crossorigin="anonymous"
-    ></script>
+    <script src="https://kit.fontawesome.com/605a1488ff.js" crossorigin="anonymous"></script>
     <link rel="stylesheet" href="../css/sign-in.css" />
   </head>
 
@@ -103,16 +100,20 @@
                   <div class="fixed bottom-[3%] left-[1.5%] w-10 h-10 rounded-full bg-[#100C08] text-white flex items-center justify-center shadow-lg pointer-events-auto cursor-pointer hover:scale-105 transition-transform">
                       <i class="fa-solid fa-layer-group fa-sm"></i>
                   </div>
+                  <!-- Left: Tracker Toggle -->
+                  <div class="fixed bottom-[3%] right-[1.5%] w-10 h-10 rounded-full bg-[#100C08] text-white flex items-center justify-center shadow-lg pointer-events-auto cursor-pointer hover:scale-105 transition-transform">
+                      <i class="fa-solid fa-comment fa-sm"></i>
+                  </div>
 
                   <!-- Center: Pomodoro Timer -->
-                  <div class="fixed top-[9%] left-[45%] h-10 flex items-center gap-3 text-gray-200 rounded-2xl bg-[#100C08] border border-[#222426] px-6 shadow-lg pointer-events-auto cursor-pointer hover:bg-[#1b1d20] transition-colors">
+                  <div class="fixed top-[9%] left-[45%] flex items-center gap-3 text-gray-200 rounded-full bg-[#100C08] border border-[#222426] px-6 py-1.5 shadow-lg pointer-events-auto cursor-pointer hover:bg-[#1b1d20] transition-colors">
                        <i class="fa-solid fa-stopwatch text-red-500"></i>
                        <span class="text-sm font-semibold tracking-wider">25:00</span>
                   </div>
                </div>
 
                <!-- Bottom Toolbar -->
-               <div class="absolute bottom-[3%] left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur border border-gray-200 rounded-2xl px-3 py-1.5 flex items-center gap-2 z-40 ">
+               <div class="absolute bottom-[3%] left-1/2 shadow-lg -translate-x-1/2 bg-white/90 backdrop-blur border border-gray-200 rounded-2xl px-3 py-1.5 flex items-center gap-2 z-40 ">
                   <button class="px-2.5 py-1 rounded-xl hover:bg-gray-200 transition text-gray-600"><i class="fas fa-location-arrow -rotate-90"></i></button>
                   <div class="w-[1px] h-6 bg-gray-400 mx-1 rounded-full"></div>
                   <button class="px-2.5 py-1 rounded-xl hover:bg-gray-200 transition text-gray-600"><i class="fas fa-square"></i></button>
@@ -188,12 +189,12 @@
 
                <!-- Cursors -->
                <div class="absolute top-[40%] left-[40%] z-30 pointer-events-none animate-float-slow">
-                  <i class="fa-solid fa-location-arrow icon fa-location-arrowr text-blue-500 text-sm"></i>
+                  <i class="fa-solid fa-location-arrow icon fa-location-arrowr text-blue-500 text-lg"></i>
                   <div class="absolute top-5 left-4 bg-blue-500 text-white text-[12px] font-bold px-2.5 py-1  rounded-full shadow-sm">Alex</div>
                </div>
 
                <div class="absolute bottom-[30%] right-[30%] z-30 pointer-events-none animate-float-slow delay-700">
-                  <i class="fa-solid fa-location-arrow icon fa-location-arrowr text-green-500 text-sm"></i>
+                  <i class="fa-solid fa-location-arrow icon fa-location-arrowr text-green-500 text-lg"></i>
                   <div class="absolute top-5 left-4 bg-green-500 text-white text-[12px] font-bold px-2.5 py-1  rounded-full shadow-sm">Jordan</div>
                </div>
 
