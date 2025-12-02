@@ -17,13 +17,7 @@ const io = new Server(httpServer, {
     methods: ["GET", "POST"]
   }
 });
-const port = process.env.PORT || 3000;
-const host = '0.0.0.0'; // Define host for Railway
-
-httpServer.listen(port, host, () => {
-    console.log(`Server listening on ${host}:${port}`);
-    console.log(`Socket.IO ready`);
-});
+const port = 3000;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -46,7 +40,6 @@ const config = {
   clientID: process.env.AUTH0_CLIENT_ID,
   issuerBaseURL: `https://${process.env.AUTH0_DOMAIN}`
 };
-
 
 // Auth0 middleware
 app.use(auth(config));
