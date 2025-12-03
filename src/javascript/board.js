@@ -1,5 +1,3 @@
-
-
 /************************************************************
  * INFINITE WHITEBOARD IMPLEMENTATION WITH SOCKET.IO
  ************************************************************/
@@ -23,6 +21,9 @@ window.initBoard = function() {
     ];
 
     let myPersona = GUEST_PERSONAS[Math.floor(Math.random() * GUEST_PERSONAS.length)];
+    // Ensure default color property exists for local cursor
+    if (!myPersona.color) myPersona.color = '#3b82f6'; // Default Blue
+
     let myUserId = Date.now().toString(36) + Math.random().toString(36).substr(2);
     let currentUser = null; // Stores actual user object from backend
     let boardOwner = null; // Stores owner info: { name, email, id }
@@ -50,10 +51,10 @@ window.initBoard = function() {
                     myPersona = {
                         name: user.name || user.email.split('@')[0], 
                         email: user.email,
-                        color: '#333', 
+                        color: user.color || '#3b82f6', // Use saved color or default
                         bg: '#e2d5ff',
                         icon: 'fa-solid fa-location-arrow',
-                        iconColor: '#a6feb0',
+                        iconColor: user.color || '#3b82f6', // Sync icon color
                         rotation: -90
                     };
                     updateUserUI(currentUser);
@@ -92,9 +93,9 @@ window.initBoard = function() {
         const popupAvatar = document.getElementById('popup-user-avatar');
 
         if (user) {
-            // Prioritize displaying EMAIL in the header as requested
-            const displayName = user.email || user.name;
-            const initials = (user.name || user.email).substring(0, 2).toUpperCase();
+            // Prioritize Name over Email for display
+            const displayName = user.name || user.email;
+            const initials = displayName.substring(0, 2).toUpperCase();
             
             if (nameEl) nameEl.innerText = displayName;
             
@@ -103,22 +104,32 @@ window.initBoard = function() {
                 if (user.picture && !user.picture.includes('s.gravatar.com')) { 
                     iconEl.innerHTML = `<img src="${user.picture}" class="w-full h-full rounded-full object-cover">`;
                     iconEl.classList.remove('flex', 'items-center', 'justify-center', 'bg-gray-700');
+                    iconEl.style.backgroundColor = 'transparent';
                 } else {
-                    // Otherwise initials
+                    // Otherwise initials with custom color
                     iconEl.innerText = initials;
                     iconEl.innerHTML = initials; // Reset HTML
-                    iconEl.className = "cursor-pointer hover:text-gray-300 transition-colors w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-[10px] font-bold text-white";
+                    iconEl.className = "cursor-pointer hover:text-gray-300 transition-colors w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white";
+                    
+                    // Apply Persona Color or User Color (Saved)
+                    iconEl.style.backgroundColor = user.color || myPersona.color || '#3b82f6';
                 }
             }
             if (popupName) popupName.innerText = user.name || "User";
             if (popupEmail) popupEmail.innerText = user.email;
-            if (popupAvatar) popupAvatar.innerText = initials;
+            if (popupAvatar) {
+                popupAvatar.innerText = initials;
+                popupAvatar.style.color = 'white';
+                // Sync popup avatar background with user/persona color
+                popupAvatar.style.backgroundColor = user.color || myPersona.color || '#1a1b1d';
+            }
         } else {
             if (nameEl) nameEl.innerText = "Guest";
             if (iconEl) {
                 iconEl.className = "fa-solid fa-user cursor-pointer hover:text-gray-300 transition-colors w-6 h-6 rounded-full bg-gray-700 flex items-center justify-center text-[10px]";
                 iconEl.innerText = "";
                 iconEl.innerHTML = "";
+                iconEl.style.backgroundColor = '';
             }
         }
     }
@@ -1065,6 +1076,10 @@ window.initBoard = function() {
         });
         
         // Profile Logic
+        // Vibrant Palette for Cursor & Profile BG
+        const profileColors = ['#EF4444', '#F59E0B', '#10B981', '#3B82F6', '#6366F1', '#8B5CF6', '#EC4899', '#64748B'];
+        let tempColor = myPersona.color;
+
         const initProfileModal = () => {
              if(currentUser) {
                  profileNameInput.value = currentUser.name || '';
@@ -1073,23 +1088,37 @@ window.initBoard = function() {
                  // Initial
                  const initials = (currentUser.name || currentUser.email).substring(0, 2).toUpperCase();
                  profileAvatar.innerText = initials;
+                 // Set background of preview avatar to current selection
+                 profileAvatar.style.backgroundColor = myPersona.color || '#1a1b1d';
+                 profileAvatar.style.color = 'white';
+
                  if(currentUser.picture && !currentUser.picture.includes('s.gravatar.com')) {
                       profileAvatar.innerHTML = `<img src="${currentUser.picture}" class="w-full h-full rounded-full object-cover">`;
                  }
              }
              
+             tempColor = myPersona.color || '#3b82f6';
+             
+             // Dynamic Header Background Sync
+             const headerBg = document.getElementById('profile-header-bg');
+             if(headerBg) headerBg.style.backgroundColor = myPersona.color || '#151313';
+
              // Render Colors
-             const colors = ['#a6feb0', '#ffc9c9', '#ccdeff', '#e2d5ff', '#fff', '#fcd34d'];
              profileColorPicker.innerHTML = '';
-             colors.forEach(c => {
+             profileColors.forEach(c => {
                  const dot = document.createElement('div');
-                 dot.className = `w-6 h-6 rounded-full cursor-pointer border-2 transition-transform hover:scale-110 ${myPersona.iconColor === c ? 'border-blue-500 scale-110' : 'border-transparent'}`;
+                 dot.className = `w-6 h-6 rounded-full cursor-pointer border-2 transition-transform hover:scale-110 ${tempColor === c ? 'border-white scale-110' : 'border-transparent'}`;
                  dot.style.backgroundColor = c;
                  dot.onclick = () => {
-                      myPersona.iconColor = c;
+                      tempColor = c;
+                      // Update Preview Avatar immediately for feedback
+                      profileAvatar.style.backgroundColor = c;
+                      // Update Header BG immediately for feedback
+                      if(headerBg) headerBg.style.backgroundColor = c;
+                      
                       // Refresh picker UI
-                      Array.from(profileColorPicker.children).forEach(child => child.classList.remove('border-blue-500', 'scale-110'));
-                      dot.classList.add('border-blue-500', 'scale-110');
+                      Array.from(profileColorPicker.children).forEach(child => child.classList.remove('border-white', 'scale-110'));
+                      dot.classList.add('border-white', 'scale-110');
                  };
                  profileColorPicker.appendChild(dot);
              });
@@ -1110,13 +1139,29 @@ window.initBoard = function() {
         if (saveProfileBtn) {
             saveProfileBtn.onclick = () => {
                 const newName = profileNameInput.value.trim();
+                
+                // Save Name
                 if(newName) {
                     if(currentUser) currentUser.name = newName;
                     myPersona.name = newName;
-                    updateUserUI(currentUser);
-                    window.showCustomAlert("Profile Updated", "Your changes have been saved.", "success");
-                    toggle(profileModal, false);
                 }
+
+                // Save Color
+                if(tempColor) {
+                    if(currentUser) currentUser.color = tempColor;
+                    myPersona.color = tempColor;
+                    myPersona.iconColor = tempColor;
+                }
+
+                // Update UI Components
+                updateUserUI(currentUser);
+                
+                // Force Immediate Cursor Color Update
+                const customCursor = document.getElementById('customCursor');
+                if(customCursor) customCursor.style.color = tempColor;
+
+                window.showCustomAlert("Profile Updated", "Your changes have been saved.", "success");
+                toggle(profileModal, false);
             };
         }
 
@@ -3197,19 +3242,25 @@ window.initBoard = function() {
         customCursor.style.top = `${cursorPos.y}px`;
 
         if (activeTool === 'mouse') {
-           customCursor.className = 'fas fa-location-arrow custom-cursor text-[#1a1a1a] opacity-100';
-            customCursor.style.transform = 'rotate(-90deg)';
+           customCursor.className = 'fas fa-location-arrow custom-cursor opacity-100';
+           customCursor.style.transform = 'rotate(-90deg)';
+           // Apply persona color dynamically
+           customCursor.style.color = myPersona.color || '#3b82f6';
         } else if (activeTool === 'eraser') {
-            customCursor.className = 'fas fa-location-arrow custom-cursor text-[#1a1a1a] opacity-100';
+            customCursor.className = 'fas fa-location-arrow custom-cursor opacity-100';
             customCursor.style.transform = 'rotate(-90deg)';
+            customCursor.style.color = myPersona.color || '#3b82f6';
         } else {
-            customCursor.className = 'fas fa-location-arrow custom-cursor text-[#1a1a1a] opacity-100';
+            customCursor.className = 'fas fa-location-arrow custom-cursor opacity-100';
             customCursor.style.transform = 'rotate(-90deg)';
+            customCursor.style.color = myPersona.color || '#3b82f6';
         }
 
         if (isMovingElement) {
             customCursor.className = 'fas fa-arrows-alt custom-cursor text-blue-500 opacity-100';
             customCursor.style.transform = '';
+            // keep blue for moving/dragging actions as visual feedback
+            customCursor.style.color = '#3b82f6';
         }
     });
 
