@@ -11,31 +11,77 @@ window.initBoard = function() {
     let isRemoteUpdate = false;
     let userRole = 'guest';
 
-    // --- USER PERSONA SETUP (Cursors) ---
-    // Updated to use fa-location-arrow and -90deg rotation for all
-    const USER_PERSONAS = [
+    // --- USER PERSONA SETUP (Fallbacks) ---
+    // These are used only if the backend doesn't return authenticated user data
+    const GUEST_PERSONAS = [
         { name: 'Alex', color: '#5C1F1F', bg: '#ffc9c9', icon: 'fa-solid fa-location-arrow', iconColor: '#ffc9c9', rotation: -90 },
         { name: 'Leo', color: '#444', bg: '#dce8ff', icon: 'fa-solid fa-location-arrow', iconColor: '#ccdeff', rotation: -90 },
         { name: 'Maya', color: '#2E2172', bg: '#e2d5ff', icon: 'fa-solid fa-location-arrow', iconColor: '#e2d5ff', rotation: -90 },
         { name: 'Sofia', color: '#214B2A', bg: '#cbffd1', icon: 'fa-solid fa-location-arrow', iconColor: '#a6feb0', rotation: -90 }
     ];
 
-    // Pick random persona or deterministically based on something
-    const myPersonaIndex = Math.floor(Math.random() * USER_PERSONAS.length);
-    const myPersona = USER_PERSONAS[myPersonaIndex];
-    const myUserId = Date.now().toString(36) + Math.random().toString(36).substr(2);
+    let myPersona = GUEST_PERSONAS[Math.floor(Math.random() * GUEST_PERSONAS.length)];
+    let myUserId = Date.now().toString(36) + Math.random().toString(36).substr(2);
+    let currentUser = null; // Stores actual user object from backend
 
     // Parse URL Parameters
     const params = new URLSearchParams(window.location.search);
     if (params.get('room')) {
         boardId = params.get('room');
     }
-    if (params.get('role')) {
-        userRole = params.get('role');
+
+    // --- FETCH USER DATA ---
+    async function fetchUserSession() {
+        try {
+            // Assumes a standard endpoint based on project structure (Redis/Auth existence)
+            // If backend is running, this should return the logged-in user matching Redis structure
+            const response = await fetch('/api/user/me'); // Adjust endpoint if specific framework differs
+            if (response.ok) {
+                const user = await response.json();
+                currentUser = user;
+                myUserId = user.id;
+                myPersona = {
+                    name: user.name,
+                    color: '#333', // Default or derived from ID
+                    bg: '#e2d5ff',
+                    icon: 'fa-solid fa-location-arrow',
+                    iconColor: '#a6feb0',
+                    rotation: -90
+                };
+                updateUserUI(user);
+                console.log('✅ Logged in as:', user.name);
+            } else {
+                console.warn('Running in Guest Mode (No Auth Session)');
+                updateUserUI(null); // Set UI to Guest
+            }
+        } catch (e) {
+            console.error('Failed to fetch user session:', e);
+            updateUserUI(null);
+        }
     }
-    // Override name if passed in URL
-    if (params.get('name')) {
-        myPersona.name = decodeURIComponent(params.get('name'));
+
+    function updateUserUI(user) {
+        const nameEl = document.getElementById('header-user-name');
+        const iconEl = document.getElementById('user-icon');
+        const popupName = document.getElementById('popup-user-name');
+        const popupEmail = document.getElementById('popup-user-email');
+        const popupAvatar = document.getElementById('popup-user-avatar');
+
+        if (user) {
+            const initials = user.name.substring(0, 2).toUpperCase();
+            if (nameEl) nameEl.innerText = user.name;
+            if (iconEl) {
+                iconEl.innerText = initials;
+                iconEl.classList.remove('fa-user'); // remove generic icon
+                iconEl.classList.add('font-bold');
+            }
+            if (popupName) popupName.innerText = user.name;
+            if (popupEmail) popupEmail.innerText = user.email;
+            if (popupAvatar) popupAvatar.innerText = initials;
+        } else {
+            if (nameEl) nameEl.innerText = "Guest";
+            if (iconEl) iconEl.classList.add('fa-user');
+        }
     }
 
     // Initialize socket if available
@@ -259,9 +305,14 @@ window.initBoard = function() {
     const sharePopup = document.getElementById('share-popup');
     const closeShareBtn = document.getElementById('close-share');
     const sharePlusBtn = document.getElementById('share-plus-btn');
+    const inviteEmailInput = document.getElementById('invite-email-input');
+    const collaboratorsList = document.getElementById('collaborators-list');
     
     const userIcon = document.getElementById('user-icon');
     const userPopup = document.getElementById('user-popup');
+    const logoutBtn = document.getElementById('logout-btn');
+    const profileBtn = document.getElementById('profile-btn');
+    const settingsBtn = document.getElementById('settings-btn');
 
     /***********************
      * STATE VARIABLES
@@ -272,7 +323,7 @@ window.initBoard = function() {
     let sprintLists = []; // Store sprint task lists
     let edges = []; // Store connections: { id, startNodeId, startHandle, endNodeId, endHandle, pathEl }
     let folders = []; // { id, name, collapsed }
-    let remoteCursors = {}; // { userId: { element: DOMElement, timeout: Timer } }
+    let remoteCursors = {}; // { userId: { element: DOMElement, timeout: Timer, targetX, targetY, currentX, currentY } }
     
     let activeTool = 'mouse';
     let penColor = '#1a1a1a';
@@ -553,8 +604,8 @@ window.initBoard = function() {
     function updateRemoteCursorScales() {
         const invScale = 1 / currentScale;
         document.querySelectorAll('.remote-cursor').forEach(el => {
-            el.style.transform = `scale(${invScale})`;
-            // Keep rotation for icon if needed, but container scale handles size
+            // Apply scale inverse to cursor, but keep rotation if applied to icon child
+            el.style.transform = `translate3d(0,0,0) scale(${invScale})`; 
         });
     }
 
@@ -863,6 +914,7 @@ window.initBoard = function() {
         if (gearIcon) gearIcon.addEventListener('click', (e) => { e.stopPropagation(); toggle(settingsModal, true); });
         if (closeSettingsBtn) closeSettingsBtn.addEventListener('click', () => toggle(settingsModal, false));
         if (settingsBackdrop) settingsBackdrop.addEventListener('click', () => toggle(settingsModal, false));
+        if (settingsBtn) settingsBtn.addEventListener('click', () => { toggle(userPopup, false); toggle(settingsModal, true); });
 
         // Share
         if (shareBtn) shareBtn.addEventListener('click', (e) => { 
@@ -872,10 +924,34 @@ window.initBoard = function() {
             else toggle(sharePopup, false);
         });
         if (closeShareBtn) closeShareBtn.addEventListener('click', () => toggle(sharePopup, false));
-        if (sharePlusBtn) sharePlusBtn.addEventListener('click', () => {
-            window.showCustomAlert("Coming Soon", "This feature is coming soon!", "info");
-        });
+        
+        // Share - Add Collaborator Logic (Client Simulation)
+        if (sharePlusBtn && inviteEmailInput && collaboratorsList) {
+            const addCollaborator = () => {
+                const email = inviteEmailInput.value.trim();
+                if (email && email.includes('@')) {
+                    // Create dummy entry
+                    const initial = email[0].toUpperCase();
+                    const div = document.createElement('div');
+                    div.className = 'flex items-center gap-2 text-xs animate-bounce-in';
+                    div.innerHTML = `
+                         <div class="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center font-bold">${initial}</div>
+                         <span class="text-gray-300">${email}</span>
+                         <span class="text-[10px] text-gray-500 ml-auto">Viewer</span>
+                    `;
+                    collaboratorsList.appendChild(div);
+                    inviteEmailInput.value = '';
+                    window.showCustomAlert("Invite Sent", `Invited ${email}`, "success");
+                } else {
+                    window.showCustomAlert("Invalid Email", "Please enter a valid email", "info");
+                }
+            };
 
+            sharePlusBtn.addEventListener('click', addCollaborator);
+            inviteEmailInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') addCollaborator();
+            });
+        }
         
         // Copy Link Logic
         const copyBtn = document.getElementById('share-copy-btn');
@@ -892,7 +968,7 @@ window.initBoard = function() {
             };
         }
 
-        // User
+        // User Popup
         if (userIcon) userIcon.addEventListener('click', (e) => {
             e.stopPropagation();
             sharePopup.classList.add('hidden'); // Close others
@@ -900,19 +976,26 @@ window.initBoard = function() {
             else toggle(userPopup, false);
         });
         
-        // User Popup buttons logic
-        const userButtons = userPopup.querySelectorAll('button');
-        userButtons.forEach(btn => {
-            btn.onclick = () => {
-                 const text = btn.innerText.trim();
-                 if (text.includes('Log Out')) {
-                     window.showCustomAlert("Logged Out", "You have been logged out safely.", "success");
-                 } else {
-                     window.showCustomAlert(text, "This feature is coming soon.", "info");
-                 }
-                 userPopup.classList.add('hidden');
+        // Profile Modal (Uses Custom Alert for now as placeholder for full profile view)
+        if (profileBtn) {
+            profileBtn.onclick = () => {
+                window.showCustomAlert("Profile", `Logged in as: ${currentUser ? currentUser.name : 'Guest'}`, "info");
+                userPopup.classList.add('hidden');
+            }
+        }
+
+        // Logout
+        if (logoutBtn) {
+            logoutBtn.onclick = () => {
+                // Try standard logout endpoint
+                fetch('/logout').then(() => {
+                    window.location.href = '/'; // Redirect home
+                }).catch(err => {
+                    // Fallback redirect if fetch fails
+                    window.location.href = '/logout'; 
+                });
             };
-        });
+        }
 
         // Close on outside click
         document.addEventListener('click', (e) => {
@@ -1520,7 +1603,7 @@ window.initBoard = function() {
     }
 
     /***********************
-     * REMOTE CURSORS
+     * REMOTE CURSORS (OPTIMIZED)
      ***********************/
 
     function updateRemoteCursor(data) {
@@ -1530,27 +1613,20 @@ window.initBoard = function() {
         if (!cursor) {
             // Create cursor element
             const el = document.createElement('div');
-            // Removed 'transition-transform' and 'duration-75' classes to handle manual transition for left/top
+            // OPTIMIZED: Removed 'transition' from CSS class to handle in JS via requestAnimationFrame for smoothness
             el.className = 'remote-cursor absolute pointer-events-none flex items-start z-[999]';
-            
-            // OPTIMIZED: Tighter transition (15ms) to reduce visual lag behind drawing
-            el.style.transition = 'left 0.015s linear, top 0.015s linear';
-            el.style.left = '4px';
-            el.style.top = '0px';
-            
-            // --- FIX: Inverse Scale to keep cursor size consistent on zoom ---
-            el.style.transform = `scale(${1/currentScale})`;
+            el.style.left = '0';
+            el.style.top = '0';
+            el.style.willChange = 'transform';
             
             // Icon
             const icon = document.createElement('i');
             icon.className = `${persona.icon || 'fa-solid fa-location-arrow'} text-lg`;
             icon.style.color = persona.iconColor || persona.color;
             
-            // Handle rotation - applied to the ICON, not the container
+            // Handle rotation - applied to the ICON
             if (typeof persona.rotation === 'number') {
                 icon.style.transform = `rotate(${persona.rotation}deg)`;
-            } else if(persona.rotate) {
-                 icon.style.transform = 'rotate(180deg)';
             }
             
             // Label
@@ -1564,13 +1640,20 @@ window.initBoard = function() {
             el.appendChild(label);
             workspace.appendChild(el);
 
-            cursor = { element: el, timeout: null };
+            cursor = { 
+                element: el, 
+                timeout: null,
+                targetX: x,
+                targetY: y,
+                currentX: x,
+                currentY: y
+            };
             remoteCursors[userId] = cursor;
         }
 
-        // Update position using left/top instead of transform to avoid stacking issues with workspace scale
-        cursor.element.style.left = `${x}px`;
-        cursor.element.style.top = `${y-4}px`;
+        // Update target position
+        cursor.targetX = x;
+        cursor.targetY = y;
 
         // Clear remove timer
         if (cursor.timeout) clearTimeout(cursor.timeout);
@@ -1583,6 +1666,30 @@ window.initBoard = function() {
             delete remoteCursors[userId];
         }, 10000);
     }
+
+    // --- ANIMATION LOOP FOR SMOOTH CURSOR MOVEMENT ---
+    function animateRemoteCursors() {
+        const smoothing = 0.2; // Interpolation factor (0.1 to 1)
+
+        for (const userId in remoteCursors) {
+            const cursor = remoteCursors[userId];
+            if (!cursor.element) continue;
+
+            // Lerp current position towards target
+            cursor.currentX += (cursor.targetX - cursor.currentX) * smoothing;
+            cursor.currentY += (cursor.targetY - cursor.currentY) * smoothing;
+
+            // Apply inverse scale to keep size consistent on zoom
+            const invScale = 1 / currentScale;
+            // Use translate3d for hardware acceleration
+            cursor.element.style.transform = `translate3d(${cursor.currentX}px, ${cursor.currentY}px, 0) scale(${invScale})`;
+        }
+
+        requestAnimationFrame(animateRemoteCursors);
+    }
+    // Start loop
+    requestAnimationFrame(animateRemoteCursors);
+
 
     // Track local mouse movement
     document.addEventListener('mousemove', (e) => {
@@ -2061,11 +2168,14 @@ window.initBoard = function() {
     }
 
     /*******************************************************
-     * GENERIC DRAG LOGIC
+     * GENERIC DRAG LOGIC (OPTIMIZED)
      *******************************************************/
     function setupDraggable(element, type) {
+        // OPTIMIZED: Cache initial positions and avoid reading DOM properties in the move loop
         let startX = 0;
         let startY = 0;
+        let currentX = 0;
+        let currentY = 0;
 
         interact(element).draggable({
             enabled: type !== 'frame', 
@@ -2076,22 +2186,30 @@ window.initBoard = function() {
                     isMovingElement = true;
                     element.style.zIndex = 100;
                     if (type === 'frame') element.classList.add('ring-1', 'ring-blue-500', 'ring-offset-2');
+                    
+                    // Cache starting positions once
                     startX = parseFloat(element.style.left) || 0;
                     startY = parseFloat(element.style.top) || 0;
+                    currentX = startX;
+                    currentY = startY;
                 },
                 move(event) {
-                    const x = (parseFloat(element.getAttribute('data-x')) || 0) + (event.dx / currentScale);
-                    const y = (parseFloat(element.getAttribute('data-y')) || 0) + (event.dy / currentScale);
-                    element.style.transform = `translate(${x}px, ${y}px)`;
-                    element.setAttribute('data-x', x);
-                    element.setAttribute('data-y', y);
+                    // Update local coordinates based on delta
+                    currentX += event.dx / currentScale;
+                    currentY += event.dy / currentScale;
                     
+                    // Use transform for smooth dragging (GPU accelerated)
+                    const translateX = currentX - startX;
+                    const translateY = currentY - startY;
+                    element.style.transform = `translate3d(${translateX}px, ${translateY}px, 0)`;
+                    
+                    // OPTIONAL: Update edges immediately if critical, or throttle/defer to end
+                    // Updating edges on every frame can be expensive. For now, we update.
+                    // If performance is still an issue, we can use requestAnimationFrame here too.
                     if (type === 'flowNode') updateEdges();
 
                     // Real-time Move Sync (Throttled)
-                    const absX = startX + x;
-                    const absY = startY + y;
-                    throttledMoveEmit(element.dataset.id, absX, absY);
+                    throttledMoveEmit(element.dataset.id, currentX, currentY);
                 },
                 end(event) {
                     element.style.zIndex = '';
@@ -2102,33 +2220,27 @@ window.initBoard = function() {
                     }
                     isMovingElement = false;
 
-                    const dx = parseFloat(element.getAttribute('data-x')) || 0;
-                    const dy = parseFloat(element.getAttribute('data-y')) || 0;
-                    const finalX = parseFloat(element.style.left) + dx;
-                    const finalY = parseFloat(element.style.top) + dy;
-
-                    element.style.left = `${finalX}px`;
-                    element.style.top = `${finalY}px`;
+                    // Commit final position to Left/Top
+                    element.style.left = `${currentX}px`;
+                    element.style.top = `${currentY}px`;
                     element.style.transform = ''; 
-                    element.removeAttribute('data-x');
-                    element.removeAttribute('data-y');
 
                     if (type === 'note') reparentNote(element);
                     // Update edges one last time to snap to final position
                     if (type === 'flowNode') updateEdges();
 
-                    if (Math.abs(finalX - startX) > 1 || Math.abs(finalY - startY) > 1) {
+                    if (Math.abs(currentX - startX) > 1 || Math.abs(currentY - startY) > 1) {
                         pushHistory({
                             type: 'MOVE_ELEMENT',
                             elementType: type,
                             element: element,
                             oldX: startX,
                             oldY: startY,
-                            newX: finalX,
-                            newY: finalY
+                            newX: currentX,
+                            newY: currentY
                         });
                         
-                        emitUpdate('MOVE', { id: element.dataset.id, x: finalX, y: finalY });
+                        emitUpdate('MOVE', { id: element.dataset.id, x: currentX, y: currentY });
                     }
                 }
             }
@@ -2808,6 +2920,9 @@ window.initBoard = function() {
     });
 
     function init() {
+        // Fetch real user
+        fetchUserSession();
+
         isRemoteUpdate = true; // Suppress emits during load
         
         const savedDrawings = localStorage.getItem(DRAWING_STORAGE_KEY);
