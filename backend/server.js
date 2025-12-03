@@ -139,6 +139,20 @@ app.get("/user-data", requiresAuth(), async (req, res) => {
   }
 });
 
+// Invite route - Simulate email sending
+app.post("/api/invite", requiresAuth(), (req, res) => {
+    const { email, boardId } = req.body;
+    
+    // In a real application, you would use 'nodemailer' or an external API (SendGrid, AWS SES) here.
+    // Example:
+    // await transporter.sendMail({ from: "noreply@whiteflow.com", to: email, subject: "Join Board", text: ... });
+    
+    console.log(`[EMAIL SERVICE] 📧 Sending invitation email to: ${email}`);
+    console.log(`[EMAIL SERVICE] Link: ${process.env.AUTH0_BASE_URL}/board?room=${boardId}`);
+
+    res.json({ success: true, message: `Invitation sent to ${email}` });
+});
+
 // SPA Routes - serve mainapp.html for frontend routing
 app.get(["/board", "/chat", "/room"], requiresAuth(), (req, res) => {
   res.sendFile(mainAppPath);
