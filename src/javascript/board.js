@@ -40,27 +40,14 @@ window.initBoard = function() {
                 const user = await response.json();
                 
                 // If user object is empty (e.g. redis issue but auth0 ok), might need fallback
-                if (!user || Object.keys(user).length === 0) {
-                     // Try profile fallback if user-data is empty
-                     const profileRes = await fetch('/profile');
-                     if(profileRes.ok) {
-                         const profile = await profileRes.json();
-                         // Construct user object from Auth0 profile
-                         currentUser = {
-                             id: profile.sub.replace(/\|/g, '-'),
-                             name: profile.name,
-                             email: profile.email,
-                             picture: profile.picture
-                         };
-                     }
-                } else {
+                if (user && (user.email || user.sub)) {
                     currentUser = user;
-                }
-
-                if (currentUser) {
-                    myUserId = currentUser.id;
+                    // Use Auth0 sub or ID from redis as userId
+                    myUserId = user.id || user.sub;
+                    
                     myPersona = {
-                        name: currentUser.email || currentUser.name, // Prefer Email as requested
+                        name: user.name || user.email.split('@')[0], 
+                        email: user.email,
                         color: '#333', 
                         bg: '#e2d5ff',
                         icon: 'fa-solid fa-location-arrow',
@@ -70,7 +57,7 @@ window.initBoard = function() {
                     updateUserUI(currentUser);
                     console.log('✅ Logged in as:', currentUser.email);
                 } else {
-                    console.warn('User data empty, using guest.');
+                    console.warn('User data empty or incomplete, using guest.');
                     updateUserUI(null);
                 }
             } else {
@@ -91,24 +78,25 @@ window.initBoard = function() {
         const popupAvatar = document.getElementById('popup-user-avatar');
 
         if (user) {
-            // Use email or name for display, prioritized
-            const displayName = user.name || user.email;
-            const initials = displayName.substring(0, 2).toUpperCase();
+            // Prioritize displaying EMAIL in the header as requested
+            const displayName = user.email || user.name;
+            const initials = (user.name || user.email).substring(0, 2).toUpperCase();
             
             if (nameEl) nameEl.innerText = displayName;
+            
             if (iconEl) {
-                // If picture exists, could use it, otherwise initials
+                // If picture exists, use it
                 if (user.picture && !user.picture.includes('s.gravatar.com')) { 
-                    // Simple check to avoid broken gravatars if needed, or just use initials style
                     iconEl.innerHTML = `<img src="${user.picture}" class="w-full h-full rounded-full object-cover">`;
                     iconEl.classList.remove('flex', 'items-center', 'justify-center', 'bg-gray-700');
                 } else {
+                    // Otherwise initials
                     iconEl.innerText = initials;
                     iconEl.innerHTML = initials; // Reset HTML
-                    iconEl.className = "fa-solid cursor-pointer hover:text-gray-300 transition-colors w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-[10px] font-bold text-white";
+                    iconEl.className = "cursor-pointer hover:text-gray-300 transition-colors w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-[10px] font-bold text-white";
                 }
             }
-            if (popupName) popupName.innerText = user.name;
+            if (popupName) popupName.innerText = user.name || "User";
             if (popupEmail) popupEmail.innerText = user.email;
             if (popupAvatar) popupAvatar.innerText = initials;
         } else {
@@ -116,6 +104,7 @@ window.initBoard = function() {
             if (iconEl) {
                 iconEl.className = "fa-solid fa-user cursor-pointer hover:text-gray-300 transition-colors w-6 h-6 rounded-full bg-gray-700 flex items-center justify-center text-[10px]";
                 iconEl.innerText = "";
+                iconEl.innerHTML = "";
             }
         }
     }
