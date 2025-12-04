@@ -1,4 +1,3 @@
-
 // Load partial HTML into a container
 async function loadHTML(path, containerId) {
     const container = document.getElementById(containerId);
@@ -121,16 +120,23 @@ async function navigate(path) {
 
     const loadScript = (src) => {
         return new Promise((resolve, reject) => {
-            let script = document.querySelector(`script[src="${src}"]`);
-            if (!script) {
-                script = document.createElement("script");
-                script.src = src;
-                script.onload = resolve;
-                script.onerror = reject;
-                document.body.appendChild(script);
-            } else {
-                resolve(); // Script already loaded
+            // Add cache busting parameter
+            const cacheBuster = `?v=${Date.now()}`;
+            const srcWithCache = src + cacheBuster;
+            
+            // Check if script with base src exists (without cache buster)
+            let script = document.querySelector(`script[src^="${src}"]`);
+            if (script) {
+                // Remove old script to force reload
+                script.remove();
             }
+            
+            // Create new script element
+            script = document.createElement("script");
+            script.src = srcWithCache;
+            script.onload = resolve;
+            script.onerror = reject;
+            document.body.appendChild(script);
         });
     };
 
@@ -211,21 +217,44 @@ async function initApp() {
     console.log("Initializing app...");
 
     // --- Inject Socket.IO Client ---
-    if (!document.querySelector('script[src="/socket.io/socket.io.js"]')) {
-        const socketScript = document.createElement('script');
-        socketScript.src = '/socket.io/socket.io.js';
-
-        // ⬇️ ADD THIS
-        socketScript.onload = () => {
-            console.log("Socket.IO client loaded.");
-            window.socket = io();  // ⬅️ THIS FIXES YOUR ERROR
-        };
-
-        document.head.appendChild(socketScript);
+    if (!window.socket) {
+        await new Promise((resolve) => {
+            // If the script tag is present, wait for io global
+            if (document.querySelector('script[src="/socket.io/socket.io.js"]')) {
+                if (typeof io !== 'undefined') {
+                    window.socket = io();
+                    console.log("Socket.IO initialized:", window.socket.id);
+                    resolve();
+                } else {
+                    const checkIo = setInterval(() => {
+                        if (typeof io !== 'undefined') {
+                            clearInterval(checkIo);
+                            window.socket = io();
+                            console.log("Socket.IO initialized:", window.socket.id);
+                            resolve();
+                        }
+                    }, 50);
+                }
+            } else {
+                // Load script manually
+                const socketScript = document.createElement('script');
+                socketScript.src = '/socket.io/socket.io.js';
+                socketScript.onload = () => {
+                    console.log("Socket.IO client loaded.");
+                    window.socket = io();
+                    console.log("Socket.IO initialized:", window.socket.id);
+                    resolve();
+                };
+                socketScript.onerror = () => {
+                    console.error("Failed to load Socket.IO client");
+                    resolve();
+                };
+                document.head.appendChild(socketScript);
+            }
+        });
     }
 
     // --- Load the Navbar First ---
-    // We await this to ensure the DOM element #mainNavbar exists before routing to homepage
     await loadHTML("components/navbar.html", "navbar-container");
 
     // Load navbar JS
