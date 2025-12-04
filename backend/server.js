@@ -1,4 +1,3 @@
-
 import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
@@ -114,7 +113,7 @@ app.get("/profile", requiresAuth(), (req, res) => {
 });
 
 // User data route - JSON response from Redis + Auth0 for Board
-app.get("/user-data", requiresAuth(), async (req, res) => {
+app.get("/api/user-data", requiresAuth(), async (req, res) => {
   try {
     const auth0User = req.oidc.user;
     let userData = { ...auth0User }; // Default to Auth0 data
@@ -131,6 +130,8 @@ app.get("/user-data", requiresAuth(), async (req, res) => {
     // Ensure essential fields
     if(!userData.email) userData.email = auth0User.email;
     if(!userData.name) userData.name = auth0User.name;
+    // Normalize ID for consistency with socket messages
+    userData.id = userData.id || auth0User.sub.replace(/\|/g, '-');
 
     res.json(userData);
   } catch (error) {
@@ -139,17 +140,16 @@ app.get("/user-data", requiresAuth(), async (req, res) => {
   }
 });
 
+// Legacy route support
+app.get("/user-data", requiresAuth(), (req, res) => {
+    res.redirect("/api/user-data");
+});
+
 // Invite route - Simulate email sending
 app.post("/api/invite", requiresAuth(), (req, res) => {
     const { email, boardId } = req.body;
-    
-    // In a real application, you would use 'nodemailer' or an external API (SendGrid, AWS SES) here.
-    // Example:
-    // await transporter.sendMail({ from: "noreply@whiteflow.com", to: email, subject: "Join Board", text: ... });
-    
     console.log(`[EMAIL SERVICE] 📧 Sending invitation email to: ${email}`);
     console.log(`[EMAIL SERVICE] Link: ${process.env.AUTH0_BASE_URL}/board?room=${boardId}`);
-
     res.json({ success: true, message: `Invitation sent to ${email}` });
 });
 
@@ -157,6 +157,10 @@ app.post("/api/invite", requiresAuth(), (req, res) => {
 app.get(["/board", "/chat", "/room"], requiresAuth(), (req, res) => {
   res.sendFile(mainAppPath);
 });
+
+function generateRoomCode(){
+  return Math.random().toString(36).substring(2, 8).toUpperCase();
+}
 
 // Socket.IO connection handling
 io.on('connection', (socket) => {
@@ -206,10 +210,22 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Join a specific board room
-  socket.on('join', (boardId) => {
+  // Join a specific board room (also used for chat)
+  socket.on('join', async (boardId) => {
     socket.join(boardId);
     console.log(`User ${socket.id} joined board room: ${boardId}`);
+
+    // Fetch and send chat history
+    if (redis && redis.isOpen) {
+        try {
+            const history = await redis.lRange(`chat:${boardId}`, 0, 49);
+            // Redis lists are stored as strings, parse them back to objects
+            const parsedHistory = history.map(msg => JSON.parse(msg));
+            socket.emit('chat:history', parsedHistory);
+        } catch (err) {
+            console.error("Error fetching chat history:", err);
+        }
+    }
   });
 
   // Handle board updates and broadcast to others in the room
@@ -220,21 +236,53 @@ io.on('connection', (socket) => {
     }
   });
 
-  /* 
-   * NEW: Game Action Handler
-   * Broadcasts specific game moves/actions to everyone in the room
-   * This allows Games.js to stay in sync.
-   * Client-side logic handles state validation (optimistic UI + eventual consistency for this scope)
-   */
+  // Handle Game Actions
   socket.on('game:action', (data) => {
       const { boardId } = data;
       if (boardId) {
-          // Broadcast to everyone including sender (simplified sync) 
-          // or excluding sender if optimistic UI is perfect.
-          // Here we broadcast to *others* usually, but for authoritative state games 
-          // sometimes it's easier to broadcast to all. 
-          // Following established pattern: broadcast to others.
           socket.to(boardId).emit('game:action', data);
+      }
+  });
+
+  // --- Chat System Events ---
+
+  socket.on('chat:message', async (data) => {
+      const { boardId, message, sender, senderId, senderName } = data;
+      
+      if (boardId && message) {
+          const chatMessage = {
+              id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+              text: message,
+              sender: senderName || 'User',
+              senderId: senderId || socket.id,
+              timestamp: new Date().toISOString()
+          };
+
+          // Persist to Redis
+          if (redis && redis.isOpen) {
+              try {
+                  await redis.rPush(`chat:${boardId}`, JSON.stringify(chatMessage));
+                  // Keep only last 50 messages
+                  await redis.lTrim(`chat:${boardId}`, -50, -1);
+              } catch (err) {
+                  console.error("Error saving chat message:", err);
+              }
+          }
+
+          // Broadcast to EVERYONE in the room (including sender, for consistency)
+          io.to(boardId).emit('chat:message', chatMessage);
+      }
+  });
+
+  socket.on('chat:typing', (data) => {
+      const { boardId, isTyping, userName } = data;
+      if (boardId) {
+          // Broadcast to others only
+          socket.to(boardId).emit('chat:typing', { 
+              userId: socket.id, 
+              userName: userName, 
+              isTyping: isTyping 
+          });
       }
   });
 
