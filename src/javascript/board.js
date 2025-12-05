@@ -172,6 +172,27 @@ window.initBoard = function() {
                     window.Games.handleEvent(data);
                 }
             });
+
+            // Listen for Profile Updates (Instant Sync)
+            socket.on('profile:update', (data) => {
+                const { userId, profile } = data;
+                
+                // Update Remote Cursor Visuals immediately
+                const cursor = remoteCursors[userId];
+                if (cursor && cursor.element) {
+                    const icon = cursor.element.querySelector('i');
+                    const label = cursor.element.querySelector('div:last-child');
+                    
+                    if (icon && profile.mouseColor) {
+                        icon.style.color = profile.mouseColor;
+                    }
+                    if (label) {
+                        if (profile.name) label.innerText = profile.name;
+                        if (profile.themeColor) label.style.backgroundColor = profile.themeColor;
+                        if (profile.textColor) label.style.color = profile.textColor;
+                    }
+                }
+            });
             
         } catch (e) {
             console.error('Socket connection failed:', e);
@@ -1197,7 +1218,8 @@ window.initBoard = function() {
                         name: myPersona.name,
                         mouseColor: myPersona.iconColor,
                         themeColor: myPersona.bg,
-                        email: myPersona.email
+                        email: myPersona.email,
+                        textColor: myPersona.color // ADD TEXT COLOR FOR REMOTE SYNC
                     }
                 });
                 
@@ -1884,6 +1906,21 @@ window.initBoard = function() {
                 currentY: y
             };
             remoteCursors[userId] = cursor;
+        } else {
+             // Update visuals if existing cursor has changed persona
+             const el = cursor.element;
+             const icon = el.querySelector('i');
+             const label = el.querySelector('div:last-child');
+             
+             if(icon) {
+                 const newColor = persona.iconColor || persona.color;
+                 if(icon.style.color !== newColor) icon.style.color = newColor;
+             }
+             if(label) {
+                 if(label.innerText !== (persona.name || 'Guest')) label.innerText = persona.name || 'Guest';
+                 if(label.style.backgroundColor !== persona.bg) label.style.backgroundColor = persona.bg;
+                 if(label.style.color !== persona.color) label.style.color = persona.color;
+             }
         }
 
         // Update target position
