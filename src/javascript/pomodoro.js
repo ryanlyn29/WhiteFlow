@@ -1,15 +1,14 @@
-
 /**
- * POMODORO TIMER - SOCKET SYNCED
+ * POMODORO TIMER - SOCKET SYNCED + LOCAL PERSISTENCE + GAME HOOKS
  * 
  * Features:
  * 1. Global Sync: Actions (Start/Stop) are sent to server.
- * 2. Persistence: State is retrieved from server on load.
- * 3. Adaptive Sizing: Expands for games.
+ * 2. Persistence: Local UI state (open/closed) is saved; Server state (time) is synced.
+ * 3. Adaptive Sizing: Expands correctly for games using the Hooks from the old version.
  */
 
 window.initPomodoro = function() {
-    console.log("Initializing Socket-Synced Pomodoro Timer...");
+    console.log("Initializing Socket-Synced Pomodoro Timer (v3 - Fixes Applied)...");
     
     // Attempt to locate the global socket object (usually on window.socket or via Games)
     const socket = window.socket || (window.Games ? window.Games.socket : null);
@@ -55,7 +54,8 @@ window.initPomodoro = function() {
         TIME_POMODORO: 25 * 60,
         TIME_SHORT_BREAK: 5 * 60,
         TIME_LONG_BREAK: 15 * 60,
-        LONG_BREAK_INTERVAL: 4
+        LONG_BREAK_INTERVAL: 4,
+        STORAGE_KEY: 'pomodoro_ui_state' // Restored for local UI prefs
     };
 
     // --- 4. STATE MANAGEMENT ---
@@ -66,10 +66,40 @@ window.initPomodoro = function() {
         isRunning: false,
         pomodoroCount: 0,
         isPomodoroOpen: false, // Local UI state
-        isGameViewActive: false
+        isGameViewActive: false // Local UI state
     };
 
-    // --- 5. UI UPDATES ---
+    // Initialize Games module without overriding board.js initialization
+    // Copied from old-pomodoro.js to ensure Games can init DOM refs early
+    if (window.Games && !window.Games.initialized) {
+        window.Games.init(null, null, null); 
+    }
+
+    // --- 5. LOCAL PERSISTENCE (UI ONLY) ---
+    // We only save/load UI state locally (open/close, game mode). 
+    // Timer state comes from server (or defaults if local).
+    const saveLocalState = () => {
+        try {
+            const uiState = {
+                isPomodoroOpen: state.isPomodoroOpen,
+                isGameViewActive: state.isGameViewActive
+            };
+            localStorage.setItem(CONFIG.STORAGE_KEY, JSON.stringify(uiState));
+        } catch (e) { console.error("Save failed", e); }
+    };
+
+    const loadLocalState = () => {
+        try {
+            const saved = localStorage.getItem(CONFIG.STORAGE_KEY);
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                state.isPomodoroOpen = parsed.isPomodoroOpen || false;
+                state.isGameViewActive = parsed.isGameViewActive || false;
+            }
+        } catch (e) { console.error("Load failed", e); }
+    };
+
+    // --- 6. UI UPDATES ---
     const formatTime = (seconds) => {
         if (seconds < 0) seconds = 0;
         const minutes = String(Math.floor(seconds / 60)).padStart(2, '0');
@@ -120,7 +150,6 @@ window.initPomodoro = function() {
         const defaultGameHeight = '550px';
         
         // LARGE Game Size (For Tic Tac Toe, RPS, Connect 4)
-        // Significantly larger to provide immersive play area
         const largeGameWidth = '700px';
         const largeGameHeight = '750px';
 
@@ -140,7 +169,6 @@ window.initPomodoro = function() {
                 targetHeight = defaultGameHeight;
 
                 // Check active game for resizing
-                // We access window.Games directly to see what's playing
                 if (window.Games && window.Games.activeGame) {
                     const activeId = window.Games.activeGame.id;
                     const largeGames = ['connect4', 'tictactoe', 'rps'];
@@ -157,7 +185,7 @@ window.initPomodoro = function() {
             pomodoroContainer.style.height = targetHeight;
             pomodoroContainer.style.borderRadius = targetRadius;
             
-            // Animation Visibility Logic
+            // Animation Visibility Logic (Restored from old version)
             collapsedButton.style.opacity = '0';
             collapsedButton.style.pointerEvents = 'none';
             
@@ -193,10 +221,10 @@ window.initPomodoro = function() {
         }
     };
     
-    // Expose for Games.js
+    // CRITICAL: Expose for Games.js so it can call it when games start
     window.pomodoroResizeHandler = renderPomodoro;
 
-    // --- 6. TICKER LOGIC ---
+    // --- 7. TICKER LOGIC ---
     const tick = () => {
         if (!state.isRunning) return;
         const now = Date.now();
@@ -209,15 +237,13 @@ window.initPomodoro = function() {
             window.pomodoroIntervalId = null;
             state.isRunning = false;
             
-            // Phase Switch Logic (Client triggers the switch for everyone if they are the host, 
-            // but for simplicity, we let the first client to tick down send the sync)
             handlePhaseEnd(); 
         } else {
             updateDisplay();
         }
     };
 
-    // --- 7. ACTIONS (SEND TO SERVER) ---
+    // --- 8. ACTIONS (SEND TO SERVER) ---
     const toggleStartStop = () => {
         const action = state.isRunning ? 'pause' : 'start';
         if (socket && boardId) {
@@ -272,13 +298,13 @@ window.initPomodoro = function() {
                 payload: {
                     phase: nextPhase,
                     remainingTime: nextTime,
-                    isRunning: true // Auto start next phase? Or false to wait. Let's auto-start.
+                    isRunning: true 
                 }
             });
         }
     };
 
-    // --- 8. SOCKET LISTENERS ---
+    // --- 9. SOCKET LISTENERS ---
     if (socket) {
         socket.on('pomodoro:sync', (serverState) => {
             console.log("Syncing Pomodoro State:", serverState);
@@ -302,9 +328,11 @@ window.initPomodoro = function() {
         });
     }
 
-    // --- 9. VIEW CONTROLS ---
+    // --- 10. VIEW CONTROLS ---
     const toggleGameView = () => {
         state.isGameViewActive = !state.isGameViewActive;
+        saveLocalState(); // Persist selection
+
         if (state.isGameViewActive) {
             timerView.classList.add('hidden');
             gameView.classList.remove('hidden');
@@ -322,8 +350,28 @@ window.initPomodoro = function() {
 
     const onPomodoroToggle = () => {
         state.isPomodoroOpen = !state.isPomodoroOpen;
+        saveLocalState(); // Persist selection
         renderPomodoro();
     };
+
+    // --- 11. HOOKS INTO GAME ENGINE (Restored from old version) ---
+    // This allows the container to resize immediately when a game starts
+    if (window.Games && !window.Games._pomodoroHooked) {
+        const originalStart = window.Games.startGame;
+        const originalStop = window.Games.stopActiveGame;
+
+        window.Games.startGame = function(id) {
+            originalStart.apply(window.Games, arguments);
+            if (window.pomodoroResizeHandler) window.pomodoroResizeHandler();
+        };
+
+        window.Games.stopActiveGame = function() {
+            originalStop.apply(window.Games, arguments);
+            if (window.pomodoroResizeHandler) window.pomodoroResizeHandler();
+        };
+
+        window.Games._pomodoroHooked = true;
+    }
 
     // Listeners
     collapsedButton.onclick = onPomodoroToggle;
@@ -332,9 +380,20 @@ window.initPomodoro = function() {
     resetButton.onclick = resetTimer;
     if(gamesToggleButton) gamesToggleButton.onclick = toggleGameView;
 
-    // --- 10. INIT ---
+    // --- 12. INIT ---
+    loadLocalState(); // Load UI prefs
     updateDisplay();
     renderPomodoro();
+    
+    // Resume View State if needed
+    if (state.isGameViewActive) {
+        timerView.classList.add('hidden');
+        gameView.classList.remove('hidden');
+        gameView.style.display = 'flex';
+        gamesToggleButton.classList.add('ring-2', 'ring-white');
+        if(window.Games && window.Games.enable) window.Games.enable();
+    }
+
     console.log("Pomodoro Initialized.");
 };
 
