@@ -250,6 +250,7 @@ window.initPomodoro = function() {
     // --- 8. SOCKET LISTENERS ---
     if (socket) {
         socket.on('pomodoro:sync', (serverState) => {
+            console.log("Syncing Pomodoro State:", serverState);
             // Update local state from server
             state.currentPhase = serverState.phase;
             state.remainingTime = serverState.remainingTime;
