@@ -1,3 +1,4 @@
+
 /**
  * POMODORO TIMER - SOCKET SYNCED
  * 
@@ -105,12 +106,21 @@ window.initPomodoro = function() {
     };
 
     const renderPomodoro = () => {
+        // Dimensions
         const collapsedWidth = '120px'; 
         const collapsedHeight = '35.5px'; 
-        const expandedWidth = '320px';
+        const collapsedBorderRadius = '1.1rem';
+
+        const expandedWidth = '320px'; // Timer View
         const expandedHeight = '380px'; 
+        const expandedBorderRadius = '1.2rem'; 
+        
+        // Default Game Menu Size (fits 6 game cards comfortably)
         const defaultGameWidth = '450px';
         const defaultGameHeight = '550px';
+        
+        // LARGE Game Size (For Tic Tac Toe, RPS, Connect 4)
+        // Significantly larger to provide immersive play area
         const largeGameWidth = '700px';
         const largeGameHeight = '750px';
 
@@ -119,44 +129,65 @@ window.initPomodoro = function() {
         pomodoroContainer.style.transform = 'translateX(-50%)'; 
         
         if (state.isPomodoroOpen) {
+            // Expanded State - Determine Target Dimensions
             let targetWidth = expandedWidth;
             let targetHeight = expandedHeight;
+            let targetRadius = expandedBorderRadius;
 
             if (state.isGameViewActive) {
+                // Base size for Game Menu
                 targetWidth = defaultGameWidth;
                 targetHeight = defaultGameHeight;
+
+                // Check active game for resizing
+                // We access window.Games directly to see what's playing
                 if (window.Games && window.Games.activeGame) {
                     const activeId = window.Games.activeGame.id;
-                    if (['connect4', 'tictactoe', 'rps'].includes(activeId)) {
+                    const largeGames = ['connect4', 'tictactoe', 'rps'];
+                    
+                    if (largeGames.includes(activeId)) {
                         targetWidth = largeGameWidth;
                         targetHeight = largeGameHeight;
                     }
                 }
             }
+
+            // Apply Dimensions
             pomodoroContainer.style.width = targetWidth;
             pomodoroContainer.style.height = targetHeight;
-            pomodoroContainer.style.borderRadius = '1.2rem';
+            pomodoroContainer.style.borderRadius = targetRadius;
             
+            // Animation Visibility Logic
             collapsedButton.style.opacity = '0';
             collapsedButton.style.pointerEvents = 'none';
+            
             expandedPanel.style.display = 'flex';
+            // Double RAF for transition effect
             requestAnimationFrame(() => {
-                expandedPanel.style.opacity = '1';
-                expandedPanel.style.pointerEvents = 'auto';
-                collapsedButton.style.display = 'none';
+                requestAnimationFrame(() => {
+                    expandedPanel.style.opacity = '1';
+                    expandedPanel.style.pointerEvents = 'auto';
+                    collapsedButton.style.display = 'none';
+                });
             });
+
         } else {
+            // Collapsed State
             pomodoroContainer.style.width = collapsedWidth;
             pomodoroContainer.style.height = collapsedHeight; 
-            pomodoroContainer.style.borderRadius = '1.1rem'; 
+            pomodoroContainer.style.borderRadius = collapsedBorderRadius; 
+
             expandedPanel.style.opacity = '0';
             expandedPanel.style.pointerEvents = 'none';
+            
             setTimeout(() => {
                 if (!state.isPomodoroOpen) {
                     expandedPanel.style.display = 'none';
                     collapsedButton.style.display = 'flex';
-                    collapsedButton.style.opacity = '1';
-                    collapsedButton.style.pointerEvents = 'auto';
+                    requestAnimationFrame(() => {
+                        collapsedButton.style.opacity = '1';
+                        collapsedButton.style.pointerEvents = 'auto';
+                    });
                 }
             }, 300);
         }
