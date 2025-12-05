@@ -54,12 +54,7 @@ const Games = {
             return;
         }
 
-        if (this.initialized) return;
-        
-        this.socket = socket;
-        this.currentUser = user || { id: 'guest', name: 'Guest', mouseColor: '#3b82f6' };
-        this.boardId = boardId;
-
+        // Always attempt to grab DOM elements even if socket isn't ready
         this.view = document.getElementById('game-view');
         this.selector = document.getElementById('game-selector');
         this.container = document.getElementById('active-game-container');
@@ -68,8 +63,16 @@ const Games = {
         if (!this.view) return;
 
         this.setupBackButton();
-        this.renderMenu();
         
+        // FIX: Ensure menu is rendered on init
+        this.renderMenu();
+
+        if (this.initialized) return;
+        
+        this.socket = socket;
+        this.currentUser = user || { id: 'guest', name: 'Guest', mouseColor: '#3b82f6' };
+        this.boardId = boardId;
+
         // Listen for Server Restoration of Game State (Reconnects)
         if (this.socket) {
             this.socket.on('game:restore', (state) => {
@@ -109,7 +112,7 @@ const Games = {
         if (!this.activeGame) this.showMenu();
         else this.activeGame.emitResize();
         
-        // Ensure menu is rendered if selector is empty (Fix for blank menu bug)
+        // FIX: Ensure menu is rendered if selector is empty (Fix for blank menu bug)
         if (this.selector && this.selector.children.length === 0) {
             this.renderMenu();
         }
@@ -271,6 +274,8 @@ class MultiplayerGame {
         this.players = { 1: null, 2: null };
         this.turn = 1;
         this.gameOver = false;
+        // FIX: Add explicit winner state tracking
+        this.winner = null; 
     }
 
     createPlayerSlot(bgClass, pid) {
@@ -339,6 +344,9 @@ class MultiplayerGame {
     processCommonEvents(data) {
         if (data.type === this.prefix + '_SIT') {
             const { seat, user } = data.payload;
+            // FIX: Don't allow sit if seat is occupied
+            if(this.players[seat]) return; 
+            
             this.players[seat] = user;
             this.updatePlayerUI();
             // Sync state back to server so late joiners see this player
@@ -354,7 +362,8 @@ class MultiplayerGame {
                 players: this.players,
                 board: this.board,
                 turn: this.turn,
-                gameOver: this.gameOver
+                gameOver: this.gameOver,
+                winner: this.winner // FIX: Persist winner
             });
         }
     }
@@ -421,6 +430,12 @@ class ConnectFour extends MultiplayerGame {
         this.updatePlayerSlotUI(this.p1Slot, this.players[1], this.turn === 1);
         this.updatePlayerSlotUI(this.p2Slot, this.players[2], this.turn === 2);
         
+        // FIX: If winner exists, do NOT overwrite status text with turn info
+        if (this.gameOver && this.winner) {
+            // Check if status is already correct to avoid flicker
+            return;
+        }
+
         if (this.gameOver) {
              // Status set in checkWin / performMove
         } else if (!this.players[1] || !this.players[2]) {
@@ -455,19 +470,23 @@ class ConnectFour extends MultiplayerGame {
         this.board = state.board || this.board;
         this.turn = state.turn || 1;
         this.gameOver = state.gameOver || false;
+        this.winner = state.winner || null; // Restore winner
+
         this.redrawBoard();
         this.updatePlayerUI();
-        if(this.gameOver) {
-             // Re-evaluate win text
-             const winner = this.checkWin(0,0,1) ? 1 : (this.checkWin(0,0,2) ? 2 : null); // Simple check won't work without last move coords in state
-             // Fallback: If game over and not draw, just show generic
-             if(!winner && !this.board.every(row => row.every(c => c !== 0))) {
-                 this.statusEl.innerText = "Game Over";
-             }
+
+        // FIX: Immediate Result Restoration (No Animation if restoring)
+        if(this.gameOver && this.winner) {
+             this.showWinResult(this.winner);
+        } else if (this.gameOver && !this.winner && this.board.every(row => row.every(c => c !== 0))) {
+             this.statusEl.innerText = "Draw!";
+             this.statusEl.className = 'text-sm font-bold text-gray-400 px-4 py-2 rounded-full border border-gray-700 bg-gray-800';
         }
     }
 
     performMove(col, pIdx) {
+        if(this.gameOver) return;
+
         let r = -1;
         for (let i = this.rows - 1; i >= 0; i--) {
             if (this.board[i][col] === 0) { r = i; break; }
@@ -479,6 +498,7 @@ class ConnectFour extends MultiplayerGame {
         
         if (this.checkWin(r, col, pIdx)) {
             this.gameOver = true;
+            this.winner = pIdx; // Set winner locally
             this.showWinResult(pIdx);
             if (this.players[1]?.id === this.currentUser.id) setTimeout(() => this.emit('C4_RESET', {}), 5000);
         } else if (this.board.every(row => row.every(c => c !== 0))) {
@@ -495,14 +515,19 @@ class ConnectFour extends MultiplayerGame {
     }
     
     showWinResult(winnerIdx) {
+        // FIX: Prevent re-animating if already shown
+        if(this.statusEl.getAttribute('data-win-state') === 'shown') return;
+        this.statusEl.setAttribute('data-win-state', 'shown');
+
         const isMe = this.players[winnerIdx]?.id === this.currentUser.id;
         const isOpponent = this.players[winnerIdx === 1 ? 2 : 1]?.id === this.currentUser.id;
         
+        // FIX: Explicit Winner/Loser text for all clients
         if (isMe) {
-            this.statusEl.innerText = "You Win!";
+            this.statusEl.innerText = "Winner!";
             this.statusEl.className = 'text-sm font-bold bg-green-900/50 text-green-400 px-4 py-2 rounded-full border border-green-700 animate-pop';
         } else if (isOpponent) {
-            this.statusEl.innerText = "You Lose!";
+            this.statusEl.innerText = "Loser!";
             this.statusEl.className = 'text-sm font-bold bg-red-900/50 text-red-400 px-4 py-2 rounded-full border border-red-700 animate-shake';
         } else {
             this.statusEl.innerText = `${this.players[winnerIdx].name} Wins!`;
@@ -551,6 +576,8 @@ class ConnectFour extends MultiplayerGame {
     resetBoard() {
         this.board = Array(this.rows).fill().map(() => Array(this.cols).fill(0));
         this.gameOver = false;
+        this.winner = null;
+        this.statusEl.removeAttribute('data-win-state'); // Reset flag
         this.turn = 1;
         this.redrawBoard();
         this.updatePlayerUI();
@@ -606,6 +633,10 @@ class TicTacToe extends MultiplayerGame {
     updatePlayerUI() {
         this.updatePlayerSlotUI(this.p1Slot, this.players[1], this.turn === 1);
         this.updatePlayerSlotUI(this.p2Slot, this.players[2], this.turn === 2);
+        
+        // FIX: Don't overwrite win message
+        if (this.gameOver && this.winner) return;
+
         if(!this.gameOver && this.players[1] && this.players[2]) {
             const isMe = this.players[this.turn]?.id === this.currentUser.id;
             this.statusEl.innerText = isMe ? "Your Turn" : "Opponent's Turn";
@@ -631,11 +662,21 @@ class TicTacToe extends MultiplayerGame {
         this.board = state.board || this.board;
         this.turn = state.turn || 1;
         this.gameOver = state.gameOver || false;
+        this.winner = state.winner || null; // Restore winner
+
         this.redrawBoard();
         this.updatePlayerUI();
+        
+        // FIX: Immediate Result Restoration
+        if(this.gameOver && this.winner) {
+            this.showWinResult(this.winner);
+        } else if (this.gameOver && !this.winner && this.board.every(c => c !== null)) {
+            this.statusEl.innerText = "Draw!";
+        }
     }
 
     performMove(idx, p) {
+        if(this.gameOver) return;
         this.board[idx] = p;
         this.turn = p === 1 ? 2 : 1;
         this.redrawBoard();
@@ -643,6 +684,7 @@ class TicTacToe extends MultiplayerGame {
         const win = this.checkWin();
         if (win) {
             this.gameOver = true;
+            this.winner = win; // Set winner
             this.showWinResult(win);
             if (this.players[1]?.id === this.currentUser.id) setTimeout(() => this.emit('TTT_RESET', {}), 3000);
         } else if (this.board.every(c => c !== null)) {
@@ -657,14 +699,17 @@ class TicTacToe extends MultiplayerGame {
     }
 
     showWinResult(winnerIdx) {
+        if(this.statusEl.getAttribute('data-win-state') === 'shown') return;
+        this.statusEl.setAttribute('data-win-state', 'shown');
+
         const isMe = this.players[winnerIdx]?.id === this.currentUser.id;
         const isOpponent = this.players[winnerIdx === 1 ? 2 : 1]?.id === this.currentUser.id;
         
         if (isMe) {
-            this.statusEl.innerText = "You Win!";
+            this.statusEl.innerText = "Winner!";
             this.statusEl.className = 'text-sm font-bold bg-green-900/50 text-green-400 px-4 py-2 rounded-full border border-green-700 animate-pop';
         } else if (isOpponent) {
-            this.statusEl.innerText = "You Lose!";
+            this.statusEl.innerText = "Loser!";
             this.statusEl.className = 'text-sm font-bold bg-red-900/50 text-red-400 px-4 py-2 rounded-full border border-red-700 animate-shake';
         } else {
             this.statusEl.innerText = `${this.players[winnerIdx].name} Wins!`;
@@ -693,6 +738,8 @@ class TicTacToe extends MultiplayerGame {
     resetBoard() {
         this.board = Array(9).fill(null);
         this.gameOver = false;
+        this.winner = null;
+        this.statusEl.removeAttribute('data-win-state');
         this.turn = 1;
         this.redrawBoard();
         this.updatePlayerUI();
@@ -794,6 +841,16 @@ class RockPaperScissors extends MultiplayerGame {
             const { player, move } = data.payload;
             if (player === 1) this.p1Move = move;
             if (player === 2) this.p2Move = move;
+            
+            // Sync state for persistence
+            if (this.players[1] && this.players[1].id === this.currentUser.id) {
+                 this.persist({
+                    players: this.players,
+                    p1Move: this.p1Move,
+                    p2Move: this.p2Move
+                 });
+            }
+
             if (this.p1Move !== 'hidden' && this.p2Move !== 'hidden' && this.p1Move && this.p2Move) {
                 this.showResult(this.p1Move, this.p2Move);
             }
@@ -803,8 +860,21 @@ class RockPaperScissors extends MultiplayerGame {
     }
     
     applyState(state) {
-        this.players = state.players;
-        // RPS state is transient mostly
+        this.players = state.players || this.players;
+        this.p1Move = state.p1Move || null;
+        this.p2Move = state.p2Move || null;
+        
+        this.updatePlayerUI();
+        
+        // Restore result if game was finished
+        if (this.p1Move && this.p1Move !== 'hidden' && this.p2Move && this.p2Move !== 'hidden') {
+            this.showResult(this.p1Move, this.p2Move);
+        } else if (this.myMove && (this.p1Move || this.p2Move)) {
+            // Restore locked in state
+             this.actionArea.style.opacity = '0.5';
+             this.actionArea.style.pointerEvents = 'none';
+             this.resultEl.innerHTML = '<span class="text-yellow-400 font-bold animate-pulse">Locked In!</span>';
+        }
     }
 
     checkReveal() {
@@ -874,6 +944,15 @@ class RockPaperScissors extends MultiplayerGame {
         this.actionArea.style.pointerEvents = 'auto';
         this.resultEl.innerHTML = '<span class="text-gray-500 font-mono text-xs">Waiting for moves...</span>';
         this.updatePlayerUI();
+        
+        // Sync reset state
+         if (this.players[1] && this.players[1].id === this.currentUser.id) {
+                 this.persist({
+                    players: this.players,
+                    p1Move: null,
+                    p2Move: null
+                 });
+        }
     }
 }
 
