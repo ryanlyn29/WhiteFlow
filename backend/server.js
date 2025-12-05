@@ -312,15 +312,9 @@ io.on('connection', (socket) => {
       }
 
       // Game Specific Logic to update Server Truth
-      // Connect 4
-      if (type === 'C4_MOVE') {
-          gameState.activeGameId = 'connect4';
-          // In a real robust app, we'd update a server-side board array here.
-          // For now, we store the last move to ensure consistency on join, 
-          // but true persistence requires replicating game logic here.
-          // We will rely on the clients to broadcast state via STATE_SYNC for deep state,
-          // but we mark the active game here.
-      }
+      if (type === 'C4_MOVE') gameState.activeGameId = 'connect4';
+      if (type === 'TTT_MOVE') gameState.activeGameId = 'tictactoe';
+      if (type === 'RPS_COMMIT') gameState.activeGameId = 'rps';
       
       // Broadcast to room
       socket.to(boardId).emit('game:action', data);
