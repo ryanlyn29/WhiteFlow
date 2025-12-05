@@ -1,4 +1,5 @@
 
+
 /************************************************************
  * INFINITE WHITEBOARD IMPLEMENTATION WITH SOCKET.IO
  ************************************************************/
@@ -480,6 +481,24 @@ window.initBoard = function() {
                     ctx.moveTo(data.prevX, data.prevY);
                     ctx.lineTo(data.x, data.y);
                     ctx.stroke();
+
+                    // Snap Remote Cursor to Ink (Fix Parallax)
+                    const cursor = remoteCursors[data.userId];
+                    if (cursor) {
+                        const globalX = parseFloat(frame.element.style.left) + data.x;
+                        const globalY = parseFloat(frame.element.style.top) + data.y;
+                        cursor.targetX = globalX;
+                        cursor.targetY = globalY;
+                        cursor.currentX = globalX; // Immediate snap
+                        cursor.currentY = globalY;
+                        
+                        // Keep alive
+                        if (cursor.timeout) clearTimeout(cursor.timeout);
+                        cursor.timeout = setTimeout(() => {
+                            if (cursor.element && cursor.element.parentNode) cursor.element.parentNode.removeChild(cursor.element);
+                            delete remoteCursors[data.userId];
+                        }, 10000);
+                    }
                 }
             } else if (data.type === 'DRAW') {
                 // Final draw update (full image)
@@ -1870,10 +1889,10 @@ window.initBoard = function() {
             icon.className = `${persona.icon || 'fa-solid fa-location-arrow'} text-lg`;
             icon.style.color = persona.iconColor || persona.color;
             
-            // Handle rotation - applied to the ICON
-            if (typeof persona.rotation === 'number') {
-                icon.style.transform = `rotate(${persona.rotation}deg)`;
-            }
+            // Handle rotation & Alignment - applied to the ICON
+            // We translate slightly to ensure the tip of the arrow (top-left after rotation) aligns with 0,0
+            const rotation = typeof persona.rotation === 'number' ? persona.rotation : -90;
+            icon.style.transform = `translate(-3px, -3px) rotate(${rotation}deg)`;
             
             // Label
             const label = document.createElement('div');
