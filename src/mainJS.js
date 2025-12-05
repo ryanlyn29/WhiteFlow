@@ -54,6 +54,46 @@ function buildPath(route) {
     return BASE_PATH + route;
 }
 
+// Optimized Script Loader
+// 1. Checks if script is already loaded to prevent redundant network requests.
+// 2. Returns promise for async/await usage.
+const loadScript = (src) => {
+    return new Promise((resolve, reject) => {
+        // Check if script already exists (performance optimization)
+        const existing = document.querySelector(`script[src^="${src}"]`);
+        if (existing) {
+            return resolve(); // Already loaded, resolve immediately
+        }
+        
+        const script = document.createElement("script");
+        script.src = src; // Browser handles caching headers automatically
+        script.async = true; // Non-blocking
+        script.onload = resolve;
+        script.onerror = reject;
+        document.body.appendChild(script);
+    });
+};
+
+// Helper to ensure Socket is ready before init
+async function getSocket() {
+    if (window.socket) return window.socket;
+    return new Promise(resolve => {
+        if (typeof io !== 'undefined') {
+            window.socket = io();
+            resolve(window.socket);
+        } else {
+            // Fallback polling only if io script is loading but not ready
+            const i = setInterval(() => {
+                if (typeof io !== 'undefined') {
+                    clearInterval(i);
+                    window.socket = io();
+                    resolve(window.socket);
+                }
+            }, 10);
+        }
+    });
+}
+
 // Navigate to a route (no reload)
 async function navigate(path) {
     const pageContainer = document.getElementById("page-content");
@@ -78,14 +118,12 @@ async function navigate(path) {
     if (window.homepageScrollListener) {
         window.removeEventListener('scroll', window.homepageScrollListener);
         window.homepageScrollListener = null;
-        console.log("Cleanup: Removed homepage scroll listener");
     }
 
     // 2. Reset Navbar Appearance
     const navbar = document.getElementById('mainNavbar');
     if (navbar) {
         navbar.classList.remove('navbar-blur');
-        console.log("Cleanup: Reset navbar blur state");
     }
 
     // 3. CLEANUP ROOM JS (Prevent duplicate listeners)
@@ -96,11 +134,8 @@ async function navigate(path) {
     // 4. Reset scroll position to top
     window.scrollTo(0, 0);
 
-    console.log("Loading route content:", route);
-
     // Show/Hide Navbar based on route
     if (navbarContainer) {
-        // HIDE navbar for specific pages
         if (path === "/board" || path === "/chat" || path === "/login" || path === "/signin") {
             navbarContainer.style.display = 'none';
         } else {
@@ -108,7 +143,7 @@ async function navigate(path) {
         }
     }
 
-    // Load the HTML
+    // 5. Load HTML Content (Wait for this to ensure DOM exists)
     await loadHTML(route, "page-content");
 
     // Update Navbar Active State
@@ -117,28 +152,6 @@ async function navigate(path) {
     // ----------------------------------------------------------------------
     // --- LOAD ROUTE-SPECIFIC JS ---
     // ----------------------------------------------------------------------
-
-    const loadScript = (src) => {
-        return new Promise((resolve, reject) => {
-            // Add cache busting parameter
-            const cacheBuster = `?v=${Date.now()}`;
-            const srcWithCache = src + cacheBuster;
-            
-            // Check if script with base src exists (without cache buster)
-            let script = document.querySelector(`script[src^="${src}"]`);
-            if (script) {
-                // Remove old script to force reload
-                script.remove();
-            }
-            
-            // Create new script element
-            script = document.createElement("script");
-            script.src = srcWithCache;
-            script.onload = resolve;
-            script.onerror = reject;
-            document.body.appendChild(script);
-        });
-    };
 
     // --- HOMEPAGE ROUTE ---
     if (path === "/" || path === "/home") {
@@ -150,20 +163,27 @@ async function navigate(path) {
         }
     }
 
-    // --- BOARD ROUTE ---
+    // --- BOARD ROUTE (Optimized for Speed & Race Conditions) ---
     else if (path === "/board") {
         try {
-            await loadScript("javascript/games.js");
-            await loadScript("javascript/board.js");
-            await loadScript("javascript/chat.js");
-            await loadScript("javascript/pomodoro.js");
+            // 1. Load all scripts in parallel (Performance Boost)
+            await Promise.all([
+                loadScript("javascript/games.js"),
+                loadScript("javascript/board.js"),
+                loadScript("javascript/chat.js"),
+                loadScript("javascript/pomodoro.js")
+            ]);
 
-            setTimeout(() => {
-                if (window.initGames) window.initGames();
-                if (window.initBoard) window.initBoard();
-                if (window.initChat) window.initChat();
-                if (window.initPomodoro) window.initPomodoro();
-            }, 50);
+            // 2. Ensure socket is ready (Prevent connection errors)
+            await getSocket();
+
+            // 3. Initialize synchronously in correct order (No Timeouts)
+            // Fixes "Blank Menu" by ensuring DOM + Scripts + Socket are ready
+            if (window.initGames) window.initGames();
+            if (window.initBoard) window.initBoard();
+            if (window.initChat) window.initChat();
+            if (window.initPomodoro) window.initPomodoro();
+
         } catch (err) {
             console.error("Failed to load board scripts:", err);
         }
@@ -172,42 +192,26 @@ async function navigate(path) {
     // --- AUTH ROUTES ---
     else if (path === "/login") {
         try {
-             if (!window.loginInitialized) {
-                const old = document.querySelector('script[src*="login.js"]');
-                if(old) old.remove();
-                await loadScript("javascript/login.js");
-                window.loginInitialized = true;
-             } else {
-                const event = new Event('DOMContentLoaded');
-                document.dispatchEvent(event);
-             }
+            await loadScript("javascript/login.js");
+            // Always dispatch event to handle re-renders
+            const event = new Event('DOMContentLoaded');
+            document.dispatchEvent(event);
         } catch (err) { console.error(err); }
     } 
     else if (path === "/signin") {
         try {
-            if (!window.signinInitialized) {
-                const old = document.querySelector('script[src*="signin.js"]');
-                if(old) old.remove();
-                await loadScript("javascript/signin.js");
-                window.signinInitialized = true;
-            } else {
-                const event = new Event('DOMContentLoaded');
-                document.dispatchEvent(event);
-            }
+            await loadScript("javascript/signin.js");
+            const event = new Event('DOMContentLoaded');
+            document.dispatchEvent(event);
         } catch (err) { console.error(err); }
     }
     
     // --- ROOM ROUTE ---
     else if (path === "/room") { 
         try {
-            // Ensure script is loaded
             await loadScript("javascript/room.js"); 
-            
             // ALWAYS initialize when entering this route
-            // This re-selects the new DOM elements and attaches listeners
-            if (window.initRoom) {
-                window.initRoom();
-            }
+            if (window.initRoom) window.initRoom();
         } catch (err) { console.error(err); }
     }
 }
@@ -216,56 +220,22 @@ async function navigate(path) {
 async function initApp() {
     console.log("Initializing app...");
 
-    // --- Inject Socket.IO Client ---
+    // --- Inject Socket.IO Client (Optimized) ---
     if (!window.socket) {
-        await new Promise((resolve) => {
-            // If the script tag is present, wait for io global
-            if (document.querySelector('script[src="/socket.io/socket.io.js"]')) {
-                if (typeof io !== 'undefined') {
-                    window.socket = io();
-                    console.log("Socket.IO initialized:", window.socket.id);
-                    resolve();
-                } else {
-                    const checkIo = setInterval(() => {
-                        if (typeof io !== 'undefined') {
-                            clearInterval(checkIo);
-                            window.socket = io();
-                            console.log("Socket.IO initialized:", window.socket.id);
-                            resolve();
-                        }
-                    }, 50);
-                }
-            } else {
-                // Load script manually
-                const socketScript = document.createElement('script');
-                socketScript.src = '/socket.io/socket.io.js';
-                socketScript.onload = () => {
-                    console.log("Socket.IO client loaded.");
-                    window.socket = io();
-                    console.log("Socket.IO initialized:", window.socket.id);
-                    resolve();
-                };
-                socketScript.onerror = () => {
-                    console.error("Failed to load Socket.IO client");
-                    resolve();
-                };
-                document.head.appendChild(socketScript);
-            }
-        });
+        if (!document.querySelector('script[src="/socket.io/socket.io.js"]')) {
+            const socketScript = document.createElement('script');
+            socketScript.src = '/socket.io/socket.io.js';
+            socketScript.async = true; 
+            document.head.appendChild(socketScript);
+            
+            // We don't await the script load here to allow UI to render first
+            // navigate() handles the await if the route needs the socket
+        }
     }
 
     // --- Load the Navbar First ---
     await loadHTML("components/navbar.html", "navbar-container");
-
-    // Load navbar JS
-    const navbarScript = document.createElement("script");
-    navbarScript.src = "javascript/navbar.js";
-    document.body.appendChild(navbarScript);
-    await new Promise((resolve) => {
-        navbarScript.onload = resolve;
-        navbarScript.onerror = resolve;
-    });
-
+    await loadScript("javascript/navbar.js");
     if (window.initNavbar) window.initNavbar();
 
     // --- Initial route ---
@@ -278,7 +248,7 @@ async function initApp() {
         await navigate(initialPath);
     }
 
-    // --- Handle link clicks ---
+    // --- Handle link clicks (SPA) ---
     document.body.addEventListener("click", (e) => {
         const link = e.target.closest("a[href]");
         if (!link) return;
