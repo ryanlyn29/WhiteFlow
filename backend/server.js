@@ -370,7 +370,7 @@ io.on('connection', (socket) => {
       }
   });
   
-  // PROFILE SYNC (Requirement 4)
+  // PROFILE SYNC (Requirement 4 & Real-time Game Slot Updates)
   socket.on('profile:update', async (data) => {
       const { boardId, profile, userId } = data; // profile contains name, mouseColor, themeColor
       
@@ -395,18 +395,38 @@ io.on('connection', (socket) => {
           userPresence[socket.id].userId = userId;
       }
 
-      // 3. Update Game State Players if sitting
+      // 3. Update Game State Players if sitting AND Broadcast Game Slot Update
       if (boardId && roomGameStates[boardId] && roomGameStates[boardId].players) {
           const players = roomGameStates[boardId].players;
+          const activeGameId = roomGameStates[boardId].activeGameId;
+          
+          let prefix = '';
+          if (activeGameId === 'connect4') prefix = 'C4';
+          else if (activeGameId === 'tictactoe') prefix = 'TTT';
+          else if (activeGameId === 'rps') prefix = 'RPS';
+
           for (const seat in players) {
               if (players[seat].id === userId) {
+                  // Update Server State
                   players[seat].name = profile.name;
                   players[seat].mouseColor = profile.mouseColor;
+                  
+                  // Force Client UI Update by re-emitting SIT with new data
+                  if (prefix) {
+                      io.to(boardId).emit('game:action', {
+                          boardId,
+                          type: `${prefix}_SIT`,
+                          payload: {
+                              seat: seat,
+                              user: players[seat]
+                          }
+                      });
+                  }
               }
           }
       }
 
-      // 4. Broadcast to Room (Real-time Sync)
+      // 4. Broadcast to Room (Real-time Sync for cursors/other components)
       if (boardId) {
           socket.to(boardId).emit('profile:update', { userId, profile });
       }
