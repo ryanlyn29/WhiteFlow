@@ -11,18 +11,31 @@ window.initBoard = function() {
     let isRemoteUpdate = false;
     let userRole = 'guest';
 
-    // --- USER PERSONA SETUP (Fallbacks) ---
-    // These are used only if the backend doesn't return authenticated user data
-    const GUEST_PERSONAS = [
-        { name: 'Alex', color: '#5C1F1F', bg: '#ffc9c9', icon: 'fa-solid fa-location-arrow', iconColor: '#ffc9c9', rotation: -90 },
-        { name: 'Leo', color: '#444', bg: '#dce8ff', icon: 'fa-solid fa-location-arrow', iconColor: '#ccdeff', rotation: -90 },
-        { name: 'Maya', color: '#2E2172', bg: '#e2d5ff', icon: 'fa-solid fa-location-arrow', iconColor: '#e2d5ff', rotation: -90 },
-        { name: 'Sofia', color: '#214B2A', bg: '#cbffd1', icon: 'fa-solid fa-location-arrow', iconColor: '#a6feb0', rotation: -90 }
+    // --- 1. THEME & PERSONA SETUP (Replaces Default Personas) ---
+    // Palette based on provided theme colors
+    const THEME_PALETTES = [
+        { id: 'red', color: '#5C1F1F', bg: '#ffc9c9', iconColor: '#ffc9c9' },    // Red/Pink Theme
+        { id: 'blue', color: '#444444', bg: '#dce8ff', iconColor: '#ccdeff' },   // Blue Theme
+        { id: 'purple', color: '#2E2172', bg: '#e2d5ff', iconColor: '#e2d5ff' }, // Purple Theme
+        { id: 'green', color: '#214B2A', bg: '#cbffd1', iconColor: '#a6feb0' }   // Green Theme
     ];
 
-    let myPersona = GUEST_PERSONAS[Math.floor(Math.random() * GUEST_PERSONAS.length)];
-    // Ensure default color property exists for local cursor
-    if (!myPersona.color) myPersona.color = '#3b82f6'; // Default Blue
+    // Load persisted data or default to random theme
+    const savedName = localStorage.getItem('whiteflow_username');
+    const savedPaletteId = localStorage.getItem('whiteflow_palette_id');
+    
+    let selectedPalette = THEME_PALETTES.find(p => p.id === savedPaletteId) || THEME_PALETTES[Math.floor(Math.random() * THEME_PALETTES.length)];
+
+    let myPersona = {
+        name: savedName || 'Guest',
+        color: selectedPalette.color,         // Text Color (Dark)
+        bg: selectedPalette.bg,               // BG Color (Light)
+        iconColor: selectedPalette.iconColor, // Icon Color (Light) for Cursor
+        rotation: -90
+    };
+
+    // Ensure default color property exists for local cursor fallbacks
+    if (!myPersona.color) myPersona.color = '#3b82f6'; 
 
     let myUserId = Date.now().toString(36) + Math.random().toString(36).substr(2);
     let currentUser = null; // Stores actual user object from backend
@@ -48,15 +61,11 @@ window.initBoard = function() {
                     // Use Auth0 sub or ID from redis as userId
                     myUserId = user.id || user.sub;
                     
-                    myPersona = {
-                        name: user.name || user.email.split('@')[0], 
-                        email: user.email,
-                        color: user.color || '#3b82f6', // Use saved color or default
-                        bg: '#e2d5ff',
-                        icon: 'fa-solid fa-location-arrow',
-                        iconColor: user.color || '#3b82f6', // Sync icon color
-                        rotation: -90
-                    };
+                    // If authenticated, we can optionally override the persona, 
+                    // but we respect the localStorage theme preference if it exists.
+                    myPersona.name = user.name || user.email.split('@')[0];
+                    myPersona.email = user.email;
+                    
                     updateUserUI(currentUser);
                     console.log('✅ Logged in as:', currentUser.email);
                 } else {
@@ -82,7 +91,13 @@ window.initBoard = function() {
         // Initialize Game Engine with User and Socket Context
         // SAFE CHECK: Ensure window.Games exists and has init function
         if (window.Games && typeof window.Games.init === 'function' && socket) {
-            window.Games.init(socket, currentUser || { id: myUserId, name: myPersona.name }, boardId);
+            // Pass the persona colors so games match the whiteboard theme
+            const gameUser = currentUser || { 
+                id: myUserId, 
+                name: myPersona.name,
+                mouseColor: myPersona.iconColor // Use icon color for game pieces
+            };
+            window.Games.init(socket, gameUser, boardId);
         }
     }
 
@@ -113,7 +128,7 @@ window.initBoard = function() {
                     iconEl.className = "cursor-pointer hover:text-gray-300 transition-colors w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white";
                     
                     // Apply Persona Color or User Color (Saved)
-                    iconEl.style.backgroundColor = user.color || myPersona.color || '#3b82f6';
+                    iconEl.style.backgroundColor = user.color || myPersona.iconColor || '#3b82f6';
                 }
             }
             if (popupName) popupName.innerText = user.name || "User";
@@ -122,15 +137,16 @@ window.initBoard = function() {
                 popupAvatar.innerText = initials;
                 popupAvatar.style.color = 'white';
                 // Sync popup avatar background with user/persona color
-                popupAvatar.style.backgroundColor = user.color || myPersona.color || '#1a1b1d';
+                popupAvatar.style.backgroundColor = user.color || myPersona.iconColor || '#1a1b1d';
             }
         } else {
-            if (nameEl) nameEl.innerText = "Guest";
+            if (nameEl) nameEl.innerText = myPersona.name || "Guest";
             if (iconEl) {
-                iconEl.className = "fa-solid fa-user cursor-pointer hover:text-gray-300 transition-colors w-6 h-6 rounded-full bg-gray-700 flex items-center justify-center text-[10px]";
-                iconEl.innerText = "";
-                iconEl.innerHTML = "";
-                iconEl.style.backgroundColor = '';
+                // Use Persona styling for Guest Icon
+                iconEl.className = "cursor-pointer hover:text-gray-300 transition-colors w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold";
+                iconEl.innerText = (myPersona.name || "G").substring(0, 1).toUpperCase();
+                iconEl.style.backgroundColor = myPersona.iconColor;
+                iconEl.style.color = myPersona.color;
             }
         }
     }
@@ -168,11 +184,6 @@ window.initBoard = function() {
             socket.emit('board:update', { boardId, type, userId: myUserId, ...data });
         }
     };
-
-    // ... (rest of the file content remains exactly the same as provided input) ...
-    // Note: Due to prompt instructions to prevent shortening, assume the rest of the 
-    // code below this point is identical to the provided input. 
-    // I am including the full file below to satisfy "Return Full updated board.js".
 
     // --- Helper: Throttling for Real-time Updates ---
     function throttle(func, limit) {
@@ -238,6 +249,34 @@ window.initBoard = function() {
 
     console.log('✅ Board elements found, initializing...');
     
+    // --- STATE VARIABLES ---
+    let frames = []; 
+    let notes = []; 
+    let flowNodes = []; // Store flow nodes
+    let sprintLists = []; // Store sprint task lists
+    let edges = []; // Store connections: { id, startNodeId, startHandle, endNodeId, endHandle, pathEl }
+    let folders = []; // { id, name, collapsed }
+    let remoteCursors = {}; // { userId: { element: DOMElement, timeout: Timer, targetX, targetY, currentX, currentY } }
+    
+    // Moved up for scope access in settings
+    let cursorPos = { x: 0, y: 0 }; 
+
+    let activeTool = 'mouse';
+    let penColor = '#1a1a1a';
+    let penSize = 2;
+    let eraserSize = 15;
+    let isMovingElement = false; 
+    let openPopup = null;
+    let drawingsData = {}; 
+
+    // Zoom State
+    let currentScale = 1;
+
+    // History Stack
+    let history = [];
+    let historyStep = -1;
+    const MAX_HISTORY = 50;
+
     // --- Global Popup Functions (Exposed for other scripts) ---
     window.showCustomAlert = function(title, message, type = 'info') {
         const alertEl = document.getElementById('custom-alert');
@@ -390,33 +429,6 @@ window.initBoard = function() {
     const logoutBtn = document.getElementById('logout-btn');
     const profileBtn = document.getElementById('profile-btn');
     const settingsBtn = document.getElementById('settings-btn');
-
-    /***********************
-     * STATE VARIABLES
-     ***********************/
-    let frames = []; 
-    let notes = []; 
-    let flowNodes = []; // Store flow nodes
-    let sprintLists = []; // Store sprint task lists
-    let edges = []; // Store connections: { id, startNodeId, startHandle, endNodeId, endHandle, pathEl }
-    let folders = []; // { id, name, collapsed }
-    let remoteCursors = {}; // { userId: { element: DOMElement, timeout: Timer, targetX, targetY, currentX, currentY } }
-    
-    let activeTool = 'mouse';
-    let penColor = '#1a1a1a';
-    let penSize = 2;
-    let eraserSize = 15;
-    let isMovingElement = false; 
-    let openPopup = null;
-    let drawingsData = {}; 
-
-    // Zoom State
-    let currentScale = 1;
-
-    // History Stack
-    let history = [];
-    let historyStep = -1;
-    const MAX_HISTORY = 50;
 
     /***********************
      * REMOTE UPDATE LOGIC
@@ -1083,8 +1095,7 @@ window.initBoard = function() {
         
         // Profile Logic
         // Vibrant Palette for Cursor & Profile BG
-        const profileColors = ['#EF4444', '#F59E0B', '#10B981', '#3B82F6', '#6366F1', '#8B5CF6', '#EC4899', '#64748B'];
-        let tempColor = myPersona.color;
+        let tempPalette = THEME_PALETTES.find(p => p.iconColor === myPersona.iconColor) || THEME_PALETTES[0];
 
         const initProfileModal = () => {
              if(currentUser) {
@@ -1095,32 +1106,40 @@ window.initBoard = function() {
                  const initials = (currentUser.name || currentUser.email).substring(0, 2).toUpperCase();
                  profileAvatar.innerText = initials;
                  // Set background of preview avatar to current selection
-                 profileAvatar.style.backgroundColor = myPersona.color || '#1a1b1d';
-                 profileAvatar.style.color = 'white';
+                 profileAvatar.style.backgroundColor = myPersona.iconColor || '#1a1b1d';
+                 profileAvatar.style.color = myPersona.color; // Dark Text
 
                  if(currentUser.picture && !currentUser.picture.includes('s.gravatar.com')) {
                       profileAvatar.innerHTML = `<img src="${currentUser.picture}" class="w-full h-full rounded-full object-cover">`;
                  }
+             } else {
+                 profileNameInput.value = myPersona.name;
+                 profileAvatar.innerText = (myPersona.name || 'G').substring(0, 2).toUpperCase();
+                 profileAvatar.style.backgroundColor = myPersona.iconColor;
+                 profileAvatar.style.color = myPersona.color;
              }
              
-             tempColor = myPersona.color || '#3b82f6';
+             tempPalette = THEME_PALETTES.find(p => p.iconColor === myPersona.iconColor) || THEME_PALETTES[0];
              
              // Dynamic Header Background Sync
              const headerBg = document.getElementById('profile-header-bg');
-             if(headerBg) headerBg.style.backgroundColor = myPersona.color || '#151313';
+             if(headerBg) headerBg.style.backgroundColor = myPersona.iconColor || '#151313';
 
-             // Render Colors
+             // Render Colors (Theme Palettes)
              profileColorPicker.innerHTML = '';
-             profileColors.forEach(c => {
+             THEME_PALETTES.forEach(p => {
                  const dot = document.createElement('div');
-                 dot.className = `w-6 h-6 rounded-full cursor-pointer border-2 transition-transform hover:scale-110 ${tempColor === c ? 'border-white scale-110' : 'border-transparent'}`;
-                 dot.style.backgroundColor = c;
+                 dot.className = `w-6 h-6 rounded-full cursor-pointer border-2 transition-transform hover:scale-110 ${tempPalette.id === p.id ? 'border-white scale-110' : 'border-transparent'}`;
+                 // Use the BG color for the dot so it's visible what the label looks like
+                 dot.style.backgroundColor = p.bg; 
                  dot.onclick = () => {
-                      tempColor = c;
+                      tempPalette = p;
                       // Update Preview Avatar immediately for feedback
-                      profileAvatar.style.backgroundColor = c;
+                      profileAvatar.style.backgroundColor = p.iconColor;
+                      profileAvatar.style.color = p.color; // Dark Text
+                      
                       // Update Header BG immediately for feedback
-                      if(headerBg) headerBg.style.backgroundColor = c;
+                      if(headerBg) headerBg.style.backgroundColor = p.iconColor;
                       
                       // Refresh picker UI
                       Array.from(profileColorPicker.children).forEach(child => child.classList.remove('border-white', 'scale-110'));
@@ -1150,13 +1169,15 @@ window.initBoard = function() {
                 if(newName) {
                     if(currentUser) currentUser.name = newName;
                     myPersona.name = newName;
+                    localStorage.setItem('whiteflow_username', newName); // PERSISTENCE
                 }
 
-                // Save Color
-                if(tempColor) {
-                    if(currentUser) currentUser.color = tempColor;
-                    myPersona.color = tempColor;
-                    myPersona.iconColor = tempColor;
+                // Save Theme
+                if(tempPalette) {
+                    myPersona.color = tempPalette.color;
+                    myPersona.bg = tempPalette.bg;
+                    myPersona.iconColor = tempPalette.iconColor;
+                    localStorage.setItem('whiteflow_palette_id', tempPalette.id); // PERSISTENCE
                 }
 
                 // Update UI Components
@@ -1164,7 +1185,22 @@ window.initBoard = function() {
                 
                 // Force Immediate Cursor Color Update
                 const customCursor = document.getElementById('customCursor');
-                if(customCursor) customCursor.style.color = tempColor;
+                if(customCursor) {
+                    customCursor.style.color = myPersona.iconColor;
+                }
+                
+                // Emit Change Instantly to Sync with Others
+                throttledCursorEmit(cursorPos.x, cursorPos.y);
+                
+                // Update Games Module if active so slots reflect new color/name
+                if (window.Games && window.Games.currentUser) {
+                    window.Games.currentUser.name = myPersona.name;
+                    window.Games.currentUser.mouseColor = myPersona.iconColor;
+                    // Trigger a game slot update if in a game? 
+                    // Usually game logic pulls from currentUser on actions, 
+                    // but for static slots, we might need to re-sit or similar.
+                    // For now, the next action will carry new color.
+                }
 
                 window.showCustomAlert("Profile Updated", "Your changes have been saved.", "success");
                 toggle(profileModal, false);
@@ -1891,6 +1927,9 @@ window.initBoard = function() {
         const wsRect = workspace.getBoundingClientRect();
         const x = (e.clientX - wsRect.left) / currentScale;
         const y = (e.clientY - wsRect.top) / currentScale;
+        
+        // Update local cursor position state for immediate syncing
+        cursorPos = { x, y };
         
         throttledCursorEmit(x, y);
     });
@@ -3241,7 +3280,6 @@ window.initBoard = function() {
     /***********************
      * CUSTOM CURSOR
      ***********************/
-    let cursorPos = { x: 0, y: 0 };
     document.addEventListener('mousemove', e => {
         cursorPos = { x: e.clientX, y: e.clientY };
         customCursor.style.left = `${cursorPos.x}px`;
@@ -3251,15 +3289,15 @@ window.initBoard = function() {
            customCursor.className = 'fas fa-location-arrow custom-cursor opacity-100';
            customCursor.style.transform = 'rotate(-90deg)';
            // Apply persona color dynamically
-           customCursor.style.color = myPersona.color || '#3b82f6';
+           customCursor.style.color = myPersona.iconColor || '#3b82f6';
         } else if (activeTool === 'eraser') {
             customCursor.className = 'fas fa-location-arrow custom-cursor opacity-100';
             customCursor.style.transform = 'rotate(-90deg)';
-            customCursor.style.color = myPersona.color || '#3b82f6';
+            customCursor.style.color = myPersona.iconColor || '#3b82f6';
         } else {
             customCursor.className = 'fas fa-location-arrow custom-cursor opacity-100';
             customCursor.style.transform = 'rotate(-90deg)';
-            customCursor.style.color = myPersona.color || '#3b82f6';
+            customCursor.style.color = myPersona.iconColor || '#3b82f6';
         }
 
         if (isMovingElement) {
