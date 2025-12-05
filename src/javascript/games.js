@@ -1,4 +1,3 @@
-
 /**
  * games.js
  * Multiplayer Game Engine for Whiteflow.
@@ -109,6 +108,11 @@ const Games = {
         if (!this.initialized) this.init(null, null, null);
         if (!this.activeGame) this.showMenu();
         else this.activeGame.emitResize();
+        
+        // Ensure menu is rendered if selector is empty (Fix for blank menu bug)
+        if (this.selector && this.selector.children.length === 0) {
+            this.renderMenu();
+        }
     },
 
     setupBackButton() {
