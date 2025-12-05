@@ -1,3 +1,4 @@
+
 /**
  * games.js
  * Multiplayer Game Engine for Whiteflow.
@@ -6,6 +7,7 @@
  * - Server-Authoritative State Sync (Handling Reconnects).
  * - Profile Color Integration for Game Pieces.
  * - Ghost/Away Status Handling.
+ * - Explicit Win/Loss/Tie Feedback.
  */
 
 const styleId = 'whiteflow-game-styles';
@@ -416,13 +418,14 @@ class ConnectFour extends MultiplayerGame {
         this.updatePlayerSlotUI(this.p2Slot, this.players[2], this.turn === 2);
         
         if (this.gameOver) {
-             // Status set in checkWin
+             // Status set in checkWin / performMove
         } else if (!this.players[1] || !this.players[2]) {
              this.statusEl.innerText = "Waiting for players...";
+             this.statusEl.className = 'text-sm font-mono text-gray-300 bg-[#222426] px-4 py-2 rounded-full border border-[#333]';
         } else {
              const isMe = this.players[this.turn]?.id === this.currentUser.id;
              this.statusEl.innerText = isMe ? "YOUR TURN" : `${this.players[this.turn].name}'s Turn`;
-             this.statusEl.style.color = isMe ? '#4ade80' : '#9ca3af';
+             this.statusEl.className = `text-sm font-mono px-4 py-2 rounded-full border border-[#333] transition-colors ${isMe ? 'bg-blue-600 text-white' : 'bg-[#222426] text-gray-400'}`;
         }
     }
 
@@ -450,6 +453,14 @@ class ConnectFour extends MultiplayerGame {
         this.gameOver = state.gameOver || false;
         this.redrawBoard();
         this.updatePlayerUI();
+        if(this.gameOver) {
+             // Re-evaluate win text
+             const winner = this.checkWin(0,0,1) ? 1 : (this.checkWin(0,0,2) ? 2 : null); // Simple check won't work without last move coords in state
+             // Fallback: If game over and not draw, just show generic
+             if(!winner && !this.board.every(row => row.every(c => c !== 0))) {
+                 this.statusEl.innerText = "Game Over";
+             }
+        }
     }
 
     performMove(col, pIdx) {
@@ -462,18 +473,37 @@ class ConnectFour extends MultiplayerGame {
         this.board[r][col] = pIdx;
         this.redrawBoard();
         
-        // Sync new state to server
         if (this.checkWin(r, col, pIdx)) {
             this.gameOver = true;
-            this.statusEl.innerText = `${this.players[pIdx].name} Wins!`;
+            this.showWinResult(pIdx);
+            if (this.players[1]?.id === this.currentUser.id) setTimeout(() => this.emit('C4_RESET', {}), 5000);
+        } else if (this.board.every(row => row.every(c => c !== 0))) {
+            this.gameOver = true;
+            this.statusEl.innerText = "Draw!";
+            this.statusEl.className = 'text-sm font-bold text-gray-400 px-4 py-2 rounded-full border border-gray-700 bg-gray-800';
             if (this.players[1]?.id === this.currentUser.id) setTimeout(() => this.emit('C4_RESET', {}), 5000);
         } else {
             this.turn = pIdx === 1 ? 2 : 1;
         }
         
-        // Save state to server
         if (this.players[1]?.id === this.currentUser.id) this.syncToServer();
         this.updatePlayerUI();
+    }
+    
+    showWinResult(winnerIdx) {
+        const isMe = this.players[winnerIdx]?.id === this.currentUser.id;
+        const isOpponent = this.players[winnerIdx === 1 ? 2 : 1]?.id === this.currentUser.id;
+        
+        if (isMe) {
+            this.statusEl.innerText = "You Win!";
+            this.statusEl.className = 'text-sm font-bold bg-green-900/50 text-green-400 px-4 py-2 rounded-full border border-green-700 animate-pop';
+        } else if (isOpponent) {
+            this.statusEl.innerText = "You Lose!";
+            this.statusEl.className = 'text-sm font-bold bg-red-900/50 text-red-400 px-4 py-2 rounded-full border border-red-700 animate-shake';
+        } else {
+            this.statusEl.innerText = `${this.players[winnerIdx].name} Wins!`;
+            this.statusEl.className = 'text-sm font-bold bg-[#222426] text-blue-400 px-4 py-2 rounded-full border border-blue-900';
+        }
     }
 
     redrawBoard() {
@@ -495,6 +525,8 @@ class ConnectFour extends MultiplayerGame {
     }
 
     checkWin(r, c, p) {
+        // Optimized check: scan full board if r,c not reliable or just rely on structure
+        // Since performMove passes exact r,c, we use local check around that point
         const dirs = [[0,1], [1,0], [1,1], [1,-1]];
         return dirs.some(([dr, dc]) => {
             let count = 1;
@@ -573,6 +605,7 @@ class TicTacToe extends MultiplayerGame {
         if(!this.gameOver && this.players[1] && this.players[2]) {
             const isMe = this.players[this.turn]?.id === this.currentUser.id;
             this.statusEl.innerText = isMe ? "Your Turn" : "Opponent's Turn";
+            this.statusEl.className = `text-sm font-mono px-4 py-2 rounded-full border border-[#333] ${isMe ? 'bg-blue-600 text-white' : 'bg-[#222426]'}`;
         }
     }
 
@@ -606,11 +639,33 @@ class TicTacToe extends MultiplayerGame {
         const win = this.checkWin();
         if (win) {
             this.gameOver = true;
-            this.statusEl.innerText = `${this.players[win].name} Wins!`;
+            this.showWinResult(win);
+            if (this.players[1]?.id === this.currentUser.id) setTimeout(() => this.emit('TTT_RESET', {}), 3000);
+        } else if (this.board.every(c => c !== null)) {
+            this.gameOver = true;
+            this.statusEl.innerText = "Draw!";
+            this.statusEl.className = 'text-sm font-bold text-gray-400 px-4 py-2 rounded-full border border-gray-700 bg-gray-800';
             if (this.players[1]?.id === this.currentUser.id) setTimeout(() => this.emit('TTT_RESET', {}), 3000);
         }
+
         if (this.players[1]?.id === this.currentUser.id) this.syncToServer();
         this.updatePlayerUI();
+    }
+
+    showWinResult(winnerIdx) {
+        const isMe = this.players[winnerIdx]?.id === this.currentUser.id;
+        const isOpponent = this.players[winnerIdx === 1 ? 2 : 1]?.id === this.currentUser.id;
+        
+        if (isMe) {
+            this.statusEl.innerText = "You Win!";
+            this.statusEl.className = 'text-sm font-bold bg-green-900/50 text-green-400 px-4 py-2 rounded-full border border-green-700 animate-pop';
+        } else if (isOpponent) {
+            this.statusEl.innerText = "You Lose!";
+            this.statusEl.className = 'text-sm font-bold bg-red-900/50 text-red-400 px-4 py-2 rounded-full border border-red-700 animate-shake';
+        } else {
+            this.statusEl.innerText = `${this.players[winnerIdx].name} Wins!`;
+            this.statusEl.className = 'text-sm font-bold bg-[#222426] text-blue-400 px-4 py-2 rounded-full border border-blue-900';
+        }
     }
 
     redrawBoard() {
@@ -620,7 +675,7 @@ class TicTacToe extends MultiplayerGame {
             if (v) {
                 const p = this.players[v];
                 const color = p && p.mouseColor ? p.mouseColor : (v === 1 ? '#06b6d4' : '#ec4899');
-                c.innerHTML = `<i class="fa-solid ${v===1?'fa-xmark':'fa-o'}" style="color:${color}"></i>`;
+                c.innerHTML = `<i class="fa-solid ${v===1?'fa-xmark':'fa-o'} animate-pop" style="color:${color}"></i>`;
             }
         });
     }
@@ -758,9 +813,37 @@ class RockPaperScissors extends MultiplayerGame {
 
     showResult(m1, m2) {
         let res = '';
-        if (m1 === m2) res = 'Draw!';
-        else if ((m1==='rock'&&m2==='scissors') || (m1==='paper'&&m2==='rock') || (m1==='scissors'&&m2==='paper')) res = 'Player 1 Wins!';
-        else res = 'Player 2 Wins!';
+        let p1Wins = false;
+        let tie = false;
+
+        if (m1 === m2) {
+             res = 'Draw!';
+             tie = true;
+        } else if ((m1==='rock'&&m2==='scissors') || (m1==='paper'&&m2==='rock') || (m1==='scissors'&&m2==='paper')) {
+             res = 'Player 1 Wins!';
+             p1Wins = true;
+        } else {
+             res = 'Player 2 Wins!';
+             p1Wins = false;
+        }
+        
+        // Determine personal message
+        let finalMsg = res;
+        let colorClass = "text-white";
+        
+        const mySeat = this.players[1]?.id === this.currentUser.id ? 1 : (this.players[2]?.id === this.currentUser.id ? 2 : 0);
+        
+        if (!tie && mySeat !== 0) {
+            if ((mySeat === 1 && p1Wins) || (mySeat === 2 && !p1Wins)) {
+                finalMsg = "You Win!";
+                colorClass = "text-green-400 drop-shadow-md";
+            } else {
+                finalMsg = "You Lose!";
+                colorClass = "text-red-400 drop-shadow-md";
+            }
+        } else if (tie) {
+             colorClass = "text-gray-300";
+        }
 
         this.resultEl.innerHTML = `
             <div class="flex flex-col items-center gap-1 animate-pop">
@@ -769,7 +852,7 @@ class RockPaperScissors extends MultiplayerGame {
                     <span class="text-gray-600 text-sm">vs</span>
                     <i class="fa-solid fa-hand-${m2} text-orange-400"></i>
                 </div>
-                <div class="text-white font-bold text-lg">${res}</div>
+                <div class="${colorClass} font-bold text-lg">${finalMsg}</div>
             </div>
         `;
         
